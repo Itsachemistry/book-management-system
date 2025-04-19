@@ -33,6 +33,11 @@ def create_app(config_name='default'):
     
     from .routes.user_routes import user_bp
     app.register_blueprint(user_bp, url_prefix='/api/users')
+    
+    # 添加书籍蓝图
+    from .routes.book_routes import book_bp
+    app.register_blueprint(book_bp, url_prefix='/api/books')
+    
     # ... 其他蓝图将在后续阶段添加
 
     # 注册命令行命令

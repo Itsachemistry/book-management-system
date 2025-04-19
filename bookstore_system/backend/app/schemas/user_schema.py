@@ -1,6 +1,7 @@
-from marshmallow import fields, validate, validates, ValidationError
+from marshmallow import fields, validate, validates, ValidationError, pre_load # 导入 pre_load
 from .. import ma
 from ..models.user import User
+import sys # 添加 sys 导入
 
 class UserSchema(ma.SQLAlchemySchema):
     """用户信息序列化Schema，用于API响应"""
@@ -28,17 +29,28 @@ class UserRegistrationSchema(ma.Schema):
     employee_id = fields.String(required=True, validate=validate.Length(max=50))
     gender = fields.String(validate=validate.Length(max=10))
     age = fields.Integer(validate=validate.Range(min=18, max=100))
-    role = fields.String(validate=validate.OneOf(['NORMAL_ADMIN', 'SUPER_ADMIN']), default='NORMAL_ADMIN')
-    
+    role = fields.String(validate=validate.OneOf(['NORMAL_ADMIN', 'SUPER_ADMIN']))
+
+    @pre_load
+    def set_default_role(self, data, **kwargs):
+        """在加载数据前设置默认角色（如果未提供）"""
+        if 'role' not in data or data['role'] is None:
+            data['role'] = 'NORMAL_ADMIN'
+        return data
+
     @validates('username')
-    def validate_username(self, username):
+    def validate_username(self, username, **kwargs): # 添加 **kwargs
         """验证用户名是否已存在"""
+        # Debug print (optional, can be removed later)
+        # print(f"Validating username: {username}, kwargs: {kwargs}", file=sys.stderr)
         if User.query.filter_by(username=username).first():
             raise ValidationError('用户名已存在')
             
     @validates('employee_id')
-    def validate_employee_id(self, employee_id):
+    def validate_employee_id(self, employee_id, **kwargs): # 添加 **kwargs
         """验证员工ID是否已存在"""
+        # Debug print (optional, can be removed later)
+        # print(f"Validating employee_id: {employee_id}, kwargs: {kwargs}", file=sys.stderr)
         if User.query.filter_by(employee_id=employee_id).first():
             raise ValidationError('员工ID已存在')
 
