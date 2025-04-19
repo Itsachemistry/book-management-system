@@ -1,25 +1,34 @@
 import { createRouter, createWebHistory } from 'vue-router'
-// 导入你的视图组件 (现在是空的，先占位)
-// import LoginView from '../views/LoginView.vue'
-// import DashboardView from '../views/DashboardView.vue'
 
+// 路由定义
 const routes = [
-  // {
-  //   path: '/login',
-  //   name: 'Login',
-  //   component: LoginView
-  // },
-  // {
-  //   path: '/',
-  //   name: 'Dashboard',
-  //   component: DashboardView,
-  //   meta: { requiresAuth: true } // 示例：标记需要登录才能访问
-  // },
-  // ... 其他路由将在后续阶段添加
   {
-    path: '/:pathMatch(.*)*', // 捕获所有未匹配的路由
+    path: '/',
+    name: 'Dashboard',
+    component: () => import('../views/DashboardView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/LoginView.vue')
+  },
+  {
+    path: '/users',
+    name: 'UserManagement',
+    component: () => import('../views/UserManagementView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../views/ProfileView.vue'),
+    meta: { requiresAuth: true }
+  },
+  // 其他路由将在后续阶段添加
+  {
+    path: '/:pathMatch(.*)*',
     name: 'NotFound',
-    // 稍后创建 NotFoundView.vue
     component: () => import('../views/NotFoundView.vue')
   }
 ]
@@ -29,10 +38,29 @@ const router = createRouter({
   routes
 })
 
-// 导航守卫 (将在阶段 1 添加)
-// router.beforeEach((to, from, next) => {
-//   // ... 检查登录状态逻辑
-// })
+// 导航守卫
+router.beforeEach(async (to, from, next) => {
+  // 动态导入auth store以避免循环依赖
+  const { useAuthStore } = await import('../store/auth');
+  const authStore = useAuthStore();
+  
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    // 需要登录但未认证，重定向到登录页
+    next('/login');
+  } 
+  else if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    // 需要管理员权限但不是管理员，重定向到首页
+    next('/');
+  }
+  else if (to.path === '/login' && authStore.isAuthenticated) {
+    // 已登录用户尝试访问登录页，重定向到首页
+    next('/');
+  }
+  else {
+    // 正常导航
+    next();
+  }
+})
 
 export default router
 

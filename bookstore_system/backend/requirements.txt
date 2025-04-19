@@ -8,3 +8,4 @@ PyJWT>=2.3
 Flask-Cors>=3.0
 Flask-Marshmallow>=0.14
 marshmallow-sqlalchemy>=0.26
+pytest>=7.0.0

@@ -27,15 +27,17 @@ def create_app(config_name='default'):
     cors.init_app(app, resources={r"/api/*": {"origins": "*"}}) # 配置 CORS，允许所有来源访问 /api/ 下的路由 (开发时常用)
     ma.init_app(app)       # 关联 Marshmallow 到 app
 
-    # 3. 注册蓝图 (Blueprints) - 现在先留空，后续添加
-    # from .routes.auth_routes import auth_bp
-    # app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    #
-    # from .routes.user_routes import user_bp
-    # app.register_blueprint(user_bp, url_prefix='/api/users')
-    # ... 其他蓝图
+    # 3. 注册蓝图 (Blueprints)
+    from .routes.auth_routes import auth_bp
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    
+    from .routes.user_routes import user_bp
+    app.register_blueprint(user_bp, url_prefix='/api/users')
+    # ... 其他蓝图将在后续阶段添加
 
-    # 可以在这里添加其他的应用设置，例如请求钩子、错误处理等
+    # 注册命令行命令
+    from .commands import register_commands
+    register_commands(app)
 
     return app
 
