@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import ProcurementView from '../views/ProcurementView.vue';
 
-// 路由定义
+// 路由配置
 const routes = [
   {
     path: '/',
@@ -14,6 +15,18 @@ const routes = [
     component: () => import('../views/LoginView.vue')
   },
   {
+    path: '/books',
+    name: 'Books',
+    component: () => import('../views/BookInventoryView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/procurement',
+    name: 'Procurement',
+    component: ProcurementView,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/users',
     name: 'UserManagement',
     component: () => import('../views/UserManagementView.vue'),
@@ -25,24 +38,18 @@ const routes = [
     component: () => import('../views/ProfileView.vue'),
     meta: { requiresAuth: true }
   },
-  {
-    path: '/procurement',
-    name: 'Procurement',
-    component: () => import('../views/ProcurementView.vue'),
-    meta: { requiresAuth: true }
-  },
   // 其他路由将在后续阶段添加
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('../views/NotFoundView.vue')
   }
-]
+];
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL), // 使用 HTML5 History 模式
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
-})
+});
 
 // 导航守卫
 router.beforeEach(async (to, from, next) => {
@@ -66,7 +73,6 @@ router.beforeEach(async (to, from, next) => {
     // 正常导航
     next();
   }
-})
+});
 
-export default router
-
+export default router;

@@ -12,7 +12,7 @@ bcrypt = Bcrypt()
 cors = CORS()
 ma = Marshmallow()
 
-def create_app(config_name='default'):
+def create_app(config_name='development'):
     """应用工厂函数"""
     app = Flask(__name__)
 
@@ -37,6 +37,10 @@ def create_app(config_name='default'):
     # 添加书籍蓝图
     from .routes.book_routes import book_bp
     app.register_blueprint(book_bp, url_prefix='/api/books')
+    
+    # 添加采购蓝图
+    from .routes.procurement_routes import procurement_bp
+    app.register_blueprint(procurement_bp, url_prefix='/api/procurement')
     
     # ... 其他蓝图将在后续阶段添加
 

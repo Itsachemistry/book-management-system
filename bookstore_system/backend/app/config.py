@@ -10,6 +10,9 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-hard-to-guess-string' # 用于 session、CSRF 等的安全密钥
     SQLALCHEMY_TRACK_MODIFICATIONS = False # 关闭 SQLAlchemy 事件通知，节省资源
     # 可以在这里添加其他通用配置
+    ITEMS_PER_PAGE = 20  # 分页默认值
+    JWT_ACCESS_TOKEN_EXPIRES = 3600  # JWT令牌过期时间(秒)
+    UPLOAD_FOLDER = os.path.join(basedir, '..', 'uploads')  # 文件上传目录
 
     @staticmethod
     def init_app(app):
