@@ -1,1 +1,10 @@
-# Python 项目依赖 
+Flask>=2.0
+Flask-SQLAlchemy>=2.5
+Flask-Migrate>=3.0
+psycopg2-binary>=2.9  
+python-dotenv>=0.19
+Flask-Bcrypt>=1.0
+PyJWT>=2.3
+Flask-Cors>=3.0
+Flask-Marshmallow>=0.14
+marshmallow-sqlalchemy>=0.26

@@ -1,0 +1,61 @@
+# Git忽略文件
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+*.log*
+*.pot
+
+# Virtual environment
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Instance folder (Flask)
+instance/
+
+# Environment variables
+.env
+.flaskenv
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/frontend/dist/
+/frontend/.vite/
+/frontend/.output/
+/frontend/.nuxt/
+
+# Test output
+htmlcov/
+.coverage
+.pytest_cache/
+nosetests.xml
+coverage.xml
