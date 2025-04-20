@@ -31,6 +31,12 @@ const routes = [
     component: () => import('../views/ProcurementView.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/books',
+    name: 'Books',
+    component: () => import('../views/BookInventoryView.vue'),
+    meta: { requiresAuth: true }
+  },
   // 其他路由将在后续阶段添加
   {
     path: '/:pathMatch(.*)*',
