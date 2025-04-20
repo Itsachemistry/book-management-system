@@ -23,9 +23,8 @@ class PurchaseOrderItemSchema(Schema):
     book = fields.Nested('BookSchema', dump_only=True, exclude=('quantity',))
     
     @validates('book_id')
-    def validate_book_exists(self, value):
+    def validate_book_exists(self, value, **kwargs):  # 添加 **kwargs 参数
         # 如果提供了 book_id 但是在数据库中不存在，验证会失败
-        # 在实际实现中，需要验证 book_id 是否存在
         from ..models.book import Book
         if value and not Book.query.get(value):
             raise ValidationError('指定的书籍不存在')
