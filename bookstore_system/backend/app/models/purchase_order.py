@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone # 导入 timezone
 from ..database import db
 
 # 订单状态常量
@@ -16,7 +16,7 @@ class PurchaseOrder(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     order_number = db.Column(db.String(50), unique=True, nullable=False)
-    order_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    order_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     status = db.Column(db.String(20), default=ORDER_STATUS['UNPAID'], nullable=False)
     total_amount = db.Column(db.Numeric(10, 2), default=0.0, nullable=False)
     supplier = db.Column(db.String(100))
@@ -30,8 +30,8 @@ class PurchaseOrder(db.Model):
     items = db.relationship('PurchaseOrderItem', backref='order', lazy=True, cascade='all, delete-orphan')
     
     # 审计字段
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     def __repr__(self):
         return f'<PurchaseOrder {self.order_number}>'
@@ -62,8 +62,8 @@ class PurchaseOrderItem(db.Model):
     purchase_price = db.Column(db.Numeric(10, 2), nullable=False)
     suggested_retail_price = db.Column(db.Numeric(10, 2))  # 建议零售价
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # 关联的书籍 (可能为空，如果是新书)
     book = db.relationship('Book', backref=db.backref('purchase_items', lazy=True))

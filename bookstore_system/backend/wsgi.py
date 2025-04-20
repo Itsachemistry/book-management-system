@@ -7,7 +7,7 @@ from dotenv import load_dotenv # <--- 添加这一行
 # 加载 .env 文件 (如果存在)
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path)
+    load_dotenv(dotenv_path, encoding='utf-8') # <--- 指定编码为 utf-8
 
 # 优先使用 FLASK_CONFIG，其次 FLASK_ENV，最后默认为 'development'
 # 确保 'development' 是 config.py 中有效的键
@@ -17,4 +17,4 @@ app = create_app(config_name)
 if __name__ == "__main__":
     # 这部分通常只在直接运行 wsgi.py 时执行 (不推荐用于生产)
     # 生产环境应使用 Gunicorn 或 uWSGI 等 WSGI 服务器
-    app.run()# WSGI 应用入口�?
+    app.run()# WSGI 应用入口

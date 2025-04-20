@@ -42,6 +42,10 @@ def create_app(config_name='development'):
     from .routes.procurement_routes import procurement_bp
     app.register_blueprint(procurement_bp, url_prefix='/api/procurement')
     
+    # 添加销售蓝图
+    from .routes.sales_routes import sales_bp
+    app.register_blueprint(sales_bp, url_prefix='/api/sales')
+    
     # ... 其他蓝图将在后续阶段添加
 
     # 注册命令行命令

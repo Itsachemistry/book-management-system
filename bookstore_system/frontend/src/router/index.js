@@ -37,6 +37,18 @@ const routes = [
     component: () => import('../views/BookInventoryView.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/sales',
+    name: 'Sales',
+    component: () => import('../views/SalesView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/finance',
+    name: 'Finance',
+    component: () => import('../views/FinanceReportView.vue'),
+    meta: { requiresAuth: true }
+  },
   // 其他路由将在后续阶段添加
   {
     path: '/:pathMatch(.*)*',

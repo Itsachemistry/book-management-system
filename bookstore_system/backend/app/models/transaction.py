@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone # 导入 timezone
 from ..database import db
 
 # 交易类型常量
@@ -17,7 +17,7 @@ class Transaction(db.Model):
     transaction_type = db.Column(db.String(20), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     description = db.Column(db.String(200))
-    transaction_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    transaction_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     
     # 关联到操作用户
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -28,8 +28,8 @@ class Transaction(db.Model):
     reference_type = db.Column(db.String(50))  # 'purchase_order' 或 'sale'
     
     # 审计字段
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     def __repr__(self):
         return f"<Transaction {self.transaction_type} {self.amount}>"

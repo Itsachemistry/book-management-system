@@ -1,5 +1,5 @@
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone # 导入 timezone
 from flask import current_app
 import sys # Add sys for stderr printing
 
@@ -16,8 +16,8 @@ def generate_token(user_id, role):
     """
     # 设置过期时间（例如24小时）
     payload = {
-        'exp': datetime.utcnow() + timedelta(hours=24),
-        'iat': datetime.utcnow(),
+        'exp': datetime.now(timezone.utc) + timedelta(hours=24), # 使用 timezone.utc
+        'iat': datetime.now(timezone.utc), # 使用 timezone.utc
         'sub': str(user_id), # 将 user_id 转换为字符串
         'role': role
     }

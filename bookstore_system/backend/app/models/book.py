@@ -35,4 +35,27 @@ class Book(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+    
+    def decrease_stock(self, amount):
+        """减少库存
+        
+        Args:
+            amount: 要减少的数量
+            
+        Returns:
+            bool: 库存是否足够
+        """
+        if self.quantity < amount:
+            return False
+        
+        self.quantity -= amount
+        return True
+        
+    def increase_stock(self, amount):
+        """增加库存
+        
+        Args:
+            amount: 要增加的数量
+        """
+        self.quantity += amount
 

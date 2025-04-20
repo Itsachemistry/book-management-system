@@ -1,9 +1,12 @@
 import os
 from dotenv import load_dotenv
+from sqlalchemy.pool import StaticPool    # <--- 新增
 
 # 加载 .env 文件中的环境变量
 basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '..', '.env')) # 加载 backend/.env
+
+# DEV_DATABASE_URL='postgresql://bookstoreuser:admin@localhost:5432/bookstore_db'
 
 class Config:
     """基础配置类"""
@@ -21,11 +24,13 @@ class Config:
 
 class DevelopmentConfig(Config):
     """开发环境配置"""
-    DEBUG = True # 开启 Debug 模式
-    # 开发环境数据库 URI (从 .env 文件读取)
-    # 示例: postgresql://bookstore_user:your_password@localhost/bookstore_db
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'dev-db.sqlite') # 如果没有设置环境变量，使用 sqlite 作为备选
+    DEBUG = True
+    SQLALCHEMY_DATABASE_URI = 'postgresql://bookstoreuser:admin@localhost:5432/bookstore_db'
+    # SQLALCHEMY_ENGINE_OPTIONS = {
+    #     'connect_args': {
+    #         'client_encoding': 'utf8'
+    #     }
+    # }
 
 class TestingConfig(Config):
     """测试环境配置"""
@@ -33,10 +38,13 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or \
         'sqlite://' # 测试通常使用内存数据库或单独的测试数据库
     WTF_CSRF_ENABLED = False # 测试时通常禁用 CSRF 保护
+    SQLALCHEMY_ENGINE_OPTIONS = {          # <--- 新增
+        'connect_args': {'check_same_thread': False},
+        'poolclass': StaticPool
+    }
 
 class ProductionConfig(Config):
     """生产环境配置"""
-    # 生产环境数据库 URI (从 .env 文件读取)
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') # 生产环境必须配置数据库 URL
     # 可以在这里添加生产环境特定的配置，例如日志级别、服务器名等
 

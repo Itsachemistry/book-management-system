@@ -2,6 +2,7 @@ from functools import wraps
 from flask import request, abort, g
 from .auth import verify_token
 from ..models.user import User
+from ..database import db # 导入 db
 import sys # Add sys for stderr printing
 
 def login_required(f):
@@ -56,7 +57,8 @@ def login_required(f):
 
         # Debug print: 正在查找的用户ID
         print(f"login_required: Looking for user with ID: {user_id}", file=sys.stderr) 
-        user = User.query.get(user_id) # 使用整数 ID 查询
+        # 使用 db.session.get 替代 User.query.get
+        user = db.session.get(User, user_id) # 使用整数 ID 查询
         if not user:
              # Debug print: 失败原因
             print(f"login_required: Aborting 401 - User with ID {user_id} not found in DB", file=sys.stderr) 
@@ -72,7 +74,7 @@ def login_required(f):
 def admin_required(f):
     """
     用于保护需要管理员权限才能访问的API路由的装饰器
-    在login_required基础上增加角色检查
+    在login_required基础上增加角色检查 (允许 ADMIN 和 SUPER_ADMIN)
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -86,10 +88,11 @@ def admin_required(f):
         # Debug print: 登录检查通过，检查角色
         print(f"admin_required: Login check passed. Checking role for user: {g.user}", file=sys.stderr) 
         
-        # 检查用户是否为超级管理员
-        if g.user.role != 'SUPER_ADMIN':
+        # 检查用户是否为 ADMIN 或 SUPER_ADMIN
+        allowed_roles = ['ADMIN', 'SUPER_ADMIN']
+        if g.user.role not in allowed_roles:
             # Debug print: 角色检查失败
-            print(f"admin_required: Aborting 403 - User role '{g.user.role}' is not 'SUPER_ADMIN'", file=sys.stderr) 
+            print(f"admin_required: Aborting 403 - User role '{g.user.role}' not in {allowed_roles}", file=sys.stderr) 
             abort(403, description="需要管理员权限")
             
         # Debug print: 角色检查通过

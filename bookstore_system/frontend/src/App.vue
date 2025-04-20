@@ -7,6 +7,8 @@
         <router-link to="/">主页</router-link>
         <router-link to="/books">图书管理</router-link>
         <router-link to="/procurement">进货管理</router-link>
+        <router-link to="/sales">销售管理</router-link>
+        <router-link to="/finance">财务报表</router-link>
         <router-link v-if="authStore.isAdmin" to="/users">用户管理</router-link>
         <router-link to="/profile">个人资料</router-link>
         <button @click="authStore.logout" class="logout-button">退出登录</button>
