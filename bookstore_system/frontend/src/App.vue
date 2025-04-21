@@ -1,26 +1,45 @@
 // filepath: c:\Users\Elio\Desktop\book-management-system\bookstore_system\frontend\src\App.vue
 <template>
-  <div id="app">
-    <!-- 新增静态标题，用于验证页面是否渲染 -->
-    <h1>书店管理系统 - 测试</h1>
-    <router-view/>
+  <div class="app-container">
+    <header class="app-header">
+      <h1>书店管理系统</h1>
+      <nav v-if="authStore.isAuthenticated">
+        <router-link to="/">仪表板</router-link>
+        <router-link to="/books">库存</router-link>
+        <router-link to="/procurement">采购</router-link>
+        <router-link to="/sales">销售</router-link>
+        <router-link to="/reports">报表</router-link>
+        <router-link v-if="authStore.isAdmin" to="/users">用户管理</router-link>
+        <router-link to="/profile">个人资料</router-link>
+        <button @click="logoutUser" class="logout-button">登出</button>
+      </nav>
+      <nav v-else>
+        <router-link to="/login">登录</router-link>
+      </nav>
+    </header>
+    <main class="app-content">
+      <router-view />
+    </main>
   </div>
 </template>
 
 <script setup>
 import { onMounted, computed } from 'vue';
 import { useAuthStore } from './store/auth';
+import { useRouter } from 'vue-router';
 
 // 新增日志，用于验证组件脚本是否执行
 console.log('App.vue loaded');
 
-// 直接引用authStore，不使用ref
+// 直接引用authStore和router
 const authStore = useAuthStore();
+const router = useRouter();
 
 // 登出方法
 const logoutUser = () => {
   console.log('用户点击登出');
   authStore.logout();
+  router.push('/login');
 };
 
 onMounted(() => {

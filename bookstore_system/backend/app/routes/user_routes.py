@@ -3,6 +3,7 @@ from ..models.user import User
 from ..schemas.user_schema import UserSchema, UserRegistrationSchema
 from ..utils.decorators import admin_required, login_required
 from .. import db
+from marshmallow import ValidationError  # 添加导入
 
 # 创建蓝图
 user_bp = Blueprint('users', __name__)
@@ -27,30 +28,41 @@ def create_user():
     返回:
     {新创建的用户信息}
     """
-    # 反序列化并验证请求数据
-    schema = UserRegistrationSchema()
-    data = schema.load(request.get_json())
+    try:
+        # 反序列化并验证请求数据
+        schema = UserRegistrationSchema()
+        data = schema.load(request.get_json())
+        
+        # 创建新用户
+        new_user = User(
+            username=data['username'],
+            full_name=data.get('full_name'),
+            employee_id=data['employee_id'],
+            gender=data.get('gender'),
+            age=data.get('age'),
+            role=data.get('role', 'NORMAL_ADMIN')
+        )
+        
+        # 设置密码
+        new_user.set_password(data['password'])
+        
+        # 保存到数据库
+        db.session.add(new_user)
+        db.session.commit()
+        
+        # 返回创建的用户
+        user_schema = UserSchema()
+        return jsonify(user_schema.dump(new_user)), 201
     
-    # 创建新用户
-    new_user = User(
-        username=data['username'],
-        full_name=data.get('full_name'),
-        employee_id=data['employee_id'],
-        gender=data.get('gender'),
-        age=data.get('age'),
-        role=data.get('role', 'NORMAL_ADMIN')
-    )
-    
-    # 设置密码
-    new_user.set_password(data['password'])
-    
-    # 保存到数据库
-    db.session.add(new_user)
-    db.session.commit()
-    
-    # 返回创建的用户
-    user_schema = UserSchema()
-    return jsonify(user_schema.dump(new_user)), 201
+    except ValidationError as err:
+        # 捕获验证错误，返回400状态码和详细错误信息
+        return jsonify({"error": "验证错误", "details": err.messages}), 400
+    except Exception as e:
+        # 捕获其他异常，回滚事务
+        db.session.rollback()
+        # 可以记录详细日志
+        print(f"创建用户时发生错误: {str(e)}")
+        return jsonify({"error": "服务器内部错误"}), 500
 
 @user_bp.route('/', methods=['GET'])
 @admin_required

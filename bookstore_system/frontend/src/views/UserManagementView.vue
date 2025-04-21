@@ -65,6 +65,9 @@
             <div class="form-group">
               <label for="password">密码<span class="required">*</span></label>
               <input type="password" id="password" v-model="newUser.password" required>
+              <span v-if="newUser.password && newUser.password.length < 6" class="error-hint">
+                密码长度必须至少为6个字符
+              </span>
             </div>
             
             <div class="form-group">
@@ -171,6 +174,13 @@ async function fetchUsers() {
 async function createNewUser() {
   formSubmitting.value = true;
   formError.value = null;
+  
+  // 添加表单验证
+  if (newUser.value.password && newUser.value.password.length < 6) {
+    formError.value = "密码长度必须至少为6个字符";
+    formSubmitting.value = false;
+    return;
+  }
   
   try {
     await createUser(newUser.value);
@@ -354,6 +364,13 @@ h1 {
   display: flex;
   justify-content: flex-end;
   margin-top: 1.5rem;
+}
+
+.error-hint {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  display: block;
+  margin-top: 0.25rem;
 }
 </style>
 
