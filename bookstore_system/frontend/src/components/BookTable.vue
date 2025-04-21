@@ -21,16 +21,17 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="book in books" :key="book.id" :class="{ 'inactive-row': !book.is_active }">
-          <td>{{ book.id }}</td>
-          <td>{{ book.isbn }}</td>
-          <td>{{ book.name }}</td>
-          <td>{{ book.author || '-' }}</td>
-          <td>{{ book.publisher || '-' }}</td>
-          <td>¥{{ book.retail_price.toFixed(2) }}</td>
+        <!-- 添加对books的空值检查 -->
+        <tr v-for="(book, index) in books" :key="book?.id || index" :class="{ 'inactive-row': book && !book.is_active }">
+          <td>{{ book?.id }}</td>
+          <td>{{ book?.isbn }}</td>
+          <td>{{ book?.name }}</td>
+          <td>{{ book?.author || '-' }}</td>
+          <td>{{ book?.publisher || '-' }}</td>
+          <td>¥{{ parseFloat(book?.retail_price)?.toFixed(2) || '0.00' }}</td>
           <td>
-            <span :class="{ 'low-stock': book.quantity < 10 }">
-              {{ book.quantity }} 本
+            <span :class="{ 'low-stock': book?.quantity < 10 }">
+              {{ book?.quantity || 0 }} 本
             </span>
           </td>
           <td>
@@ -61,7 +62,7 @@
             </div>
           </td>
         </tr>
-        <tr v-if="books.length === 0">
+        <tr v-if="!books || books.length === 0">
           <td colspan="8" class="empty-table">
             没有找到匹配的书籍
           </td>
@@ -113,7 +114,7 @@ import { defineProps, defineEmits } from 'vue';
 const props = defineProps({
   books: {
     type: Array,
-    required: true
+    default: () => [] // 提供默认值，防止undefined
   },
   pagination: {
     type: Object,

@@ -67,3 +67,10 @@ class BookUpdateSchema(ma.Schema):
         if value is not None and value < 0:
             raise ValidationError('库存数量不能为负数')
 
+class BookQuerySchema(ma.Schema):
+    """用于验证查询书籍列表的查询参数"""
+    search = fields.String(required=False, allow_none=True)
+    page = fields.Integer(load_default=1, validate=fields.validate.Range(min=1))
+    per_page = fields.Integer(load_default=20, validate=fields.validate.Range(min=1, max=100))
+    active_only = fields.Boolean(load_default=True)
+

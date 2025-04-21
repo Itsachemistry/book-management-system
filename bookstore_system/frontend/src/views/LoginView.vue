@@ -2,42 +2,40 @@
   <div class="login-container">
     <div class="login-form">
       <h1>书店管理系统</h1>
-      <h2>用户登录</h2>
+      <h2>登录</h2>
       
-      <div v-if="authStore.error" class="error-message">
-        {{ authStore.error }}
+      <div v-if="error" class="error-message">
+        {{ error }}
       </div>
       
-      <form @submit.prevent="handleLogin">
+      <form @submit.prevent="login">
         <div class="form-group">
           <label for="username">用户名</label>
           <input 
-            type="text" 
             id="username" 
-            v-model="form.username" 
+            v-model="username" 
+            type="text" 
             required 
-            :disabled="authStore.isLoading"
+            autocomplete="username"
           />
         </div>
         
         <div class="form-group">
           <label for="password">密码</label>
           <input 
-            type="password" 
             id="password" 
-            v-model="form.password" 
+            v-model="password" 
+            type="password" 
             required 
-            :disabled="authStore.isLoading"
+            autocomplete="current-password"
           />
         </div>
         
-        <button 
-          type="submit" 
-          :disabled="authStore.isLoading"
-          class="login-button"
-        >
-          {{ authStore.isLoading ? '登录中...' : '登录' }}
-        </button>
+        <div class="form-actions">
+          <button type="submit" :disabled="loading">
+            {{ loading ? '登录中...' : '登录' }}
+          </button>
+        </div>
       </form>
     </div>
   </div>
@@ -51,20 +49,28 @@ import { useAuthStore } from '../store/auth';
 const router = useRouter();
 const authStore = useAuthStore();
 
-const form = ref({
-  username: '',
-  password: ''
-});
+const username = ref('admin');
+const password = ref('admin123');
+const loading = ref(false);
+const error = ref('');
 
-async function handleLogin() {
+const login = async () => {
+  error.value = '';
+  loading.value = true;
+  
   try {
-    await authStore.login(form.value);
+    await authStore.login({
+      username: username.value,
+      password: password.value
+    });
     router.push('/');
-  } catch (error) {
-    // 错误已在store中处理
-    console.error('登录失败:', error);
+  } catch (err) {
+    error.value = err.message || '登录失败，请检查用户名和密码';
+    console.error('登录失败:', err);
+  } finally {
+    loading.value = false;
   }
-}
+};
 </script>
 
 <style scoped>
@@ -73,29 +79,31 @@ async function handleLogin() {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #f5f7fa;
 }
 
 .login-form {
-  width: 100%;
+  width: 90%;
   max-width: 400px;
   padding: 2rem;
-  background-color: white;
+  background: white;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
 h1 {
-  text-align: center;
+  margin-top: 0;
   margin-bottom: 0.5rem;
   color: #2c3e50;
+  text-align: center;
+  font-size: 1.8rem;
 }
 
 h2 {
-  text-align: center;
   margin-bottom: 2rem;
-  color: #7f8c8d;
-  font-weight: normal;
+  color: #2c3e50;
+  text-align: center;
+  font-size: 1.5rem;
 }
 
 .form-group {
@@ -105,7 +113,8 @@ h2 {
 label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #34495e;
+  font-weight: bold;
+  color: #2c3e50;
 }
 
 input {
@@ -116,7 +125,7 @@ input {
   font-size: 1rem;
 }
 
-.login-button {
+button {
   width: 100%;
   padding: 0.75rem;
   background-color: #3498db;
@@ -125,25 +134,24 @@ input {
   border-radius: 4px;
   font-size: 1rem;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: background-color 0.2s;
 }
 
-.login-button:hover {
+button:hover:not(:disabled) {
   background-color: #2980b9;
 }
 
-.login-button:disabled {
+button:disabled {
   background-color: #95a5a6;
   cursor: not-allowed;
 }
 
 .error-message {
-  background-color: #f8d7da;
-  color: #721c24;
   padding: 0.75rem;
   margin-bottom: 1.5rem;
+  background-color: #f8d7da;
+  color: #721c24;
   border-radius: 4px;
-  text-align: center;
 }
 </style>
 

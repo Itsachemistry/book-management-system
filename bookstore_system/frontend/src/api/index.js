@@ -2,37 +2,76 @@ import axios from 'axios';
 
 // 创建 Axios 实例
 const apiClient = axios.create({
-  // 从 Vite 环境变量读取后端 API 的基础 URL
-  // 需要在 frontend/.env.development 文件中定义 VITE_API_BASE_URL
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api', // 提供一个默认值
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
-  }
+  },
+  withCredentials: true
 });
 
-// (可选) 添加请求拦截器 - 例如，在每个请求中附加认证 Token
-// apiClient.interceptors.request.use(config => {
-//   const token = localStorage.getItem('authToken'); // 假设 token 存储在 localStorage
-//   if (token) {
-//     config.headers.Authorization = `Bearer ${token}`;
-//   }
-//   return config;
-// }, error => {
-//   return Promise.reject(error);
-// });
+// 添加认证令牌的拦截器
+apiClient.interceptors.request.use(config => {
+  // 从localStorage获取token
+  const token = localStorage.getItem('auth_token');
+  
+  // 如果有token，添加到请求头
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
 
-// (可选) 添加响应拦截器 - 例如，处理全局错误或 Token 过期
-// apiClient.interceptors.response.use(response => {
-//   return response;
-// }, error => {
-//   if (error.response && error.response.status === 401) {
-//     // 处理未授权错误，例如重定向到登录页
-//     console.error("Unauthorized access - redirecting to login");
-//     // store.dispatch('auth/logout'); // 假设有 logout action
-//     // router.push('/login');
-//   }
-//   return Promise.reject(error);
-// });
+  // POST和PUT请求时确保数据正确
+  if ((config.method === 'post' || config.method === 'put') && config.data) {
+    // 确保数值类型字段正确转换
+    if (typeof config.data === 'object' && !(config.data instanceof FormData)) {
+      // 特别处理Books API相关字段
+      if (config.data.retail_price !== undefined) {
+        config.data.retail_price = Number(config.data.retail_price);
+      }
+      if (config.data.quantity !== undefined) {
+        config.data.quantity = Number(config.data.quantity);
+      }
+      
+      // 特别处理创建书籍的API调用 - 移除is_active字段
+      if (config.url === '/books' && config.method === 'post') {
+        const { is_active, ...dataWithoutIsActive } = config.data;
+        config.data = dataWithoutIsActive;
+      }
+    }
+  }
+  
+  return config;
+}, error => {
+  return Promise.reject(error);
+});
+
+// 添加响应拦截器
+apiClient.interceptors.response.use(response => {
+  return response;
+}, error => {
+  // 日志完整错误信息以便调试
+  if (error.response) {
+    console.error('API错误响应:', {
+      状态码: error.response.status,
+      响应数据: error.response.data,
+      请求: error.config
+    });
+    
+    // 401错误时可能需要重新登录
+    if (error.response.status === 401) {
+      // 如果不是登录请求本身，可以清除token并重定向到登录页面
+      if (!error.config.url.includes('login')) {
+        console.log('认证失败，清除token');
+        localStorage.removeItem('auth_token');
+        // 如果使用了Vue Router，这里可以重定向
+        // window.location.href = '/login';
+      }
+    }
+  } else {
+    console.error('API请求错误:', error.message);
+  }
+  
+  return Promise.reject(error);
+});
 
 export default apiClient;
 

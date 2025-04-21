@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
@@ -24,8 +24,26 @@ def create_app(config_name='development'):
     db.init_app(app)       # 关联 SQLAlchemy 到 app
     migrate.init_app(app, db) # 关联 Migrate 到 app 和 db
     bcrypt.init_app(app)   # 关联 Bcrypt 到 app
-    cors.init_app(app, resources={r"/api/*": {"origins": "*"}}) # 配置 CORS，允许所有来源访问 /api/ 下的路由 (开发时常用)
     ma.init_app(app)       # 关联 Marshmallow 到 app
+
+    # 配置CORS - 确保允许来自前端的请求，包括localhost:3000和file://协议
+    cors.init_app(app, resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:5174", 
+                "http://127.0.0.1:5174", 
+                "http://localhost:3000", 
+                "http://127.0.0.1:3000",
+                "file://", 
+                "null"
+            ],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "Accept"],
+            "supports_credentials": True,
+            "expose_headers": ["Content-Type", "X-Total-Count"]
+        }
+    })
+    CORS(app, supports_credentials=True)
 
     # 3. 注册蓝图 (Blueprints)
     from .routes.auth_routes import auth_bp
@@ -51,6 +69,12 @@ def create_app(config_name='development'):
     # 注册命令行命令
     from .commands import register_commands
     register_commands(app)
+    
+    # 添加API根路由响应
+    @app.route('/api', methods=['GET', 'OPTIONS'])
+    def api_root():
+        if request.method == 'OPTIONS':
+            return '', 204
+        return jsonify({"message": "欢迎使用书店管理系统API", "status": "online"})
 
     return app
-

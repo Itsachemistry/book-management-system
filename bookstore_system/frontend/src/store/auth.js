@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { login as loginApi, getCurrentUser } from '../api/auth';
+import { login as loginApi, getCurrentUser as fetchCurrentUser } from '../api/auth';
 import router from '../router';
 
 export const useAuthStore = defineStore('auth', {
@@ -66,7 +66,7 @@ export const useAuthStore = defineStore('auth', {
       this.status = 'loading';
       
       try {
-        const user = await getCurrentUser();
+        const user = await fetchCurrentUser();
         this.user = user;
         this.status = 'success';
         return user;
@@ -82,6 +82,7 @@ export const useAuthStore = defineStore('auth', {
     },
     
     initialize() {
+      console.log('初始化认证状态...');
       // 应用加载时从 localStorage 恢复会话
       const token = localStorage.getItem('token');
       const user = localStorage.getItem('user');
@@ -95,11 +96,17 @@ export const useAuthStore = defineStore('auth', {
           // 验证令牌是否仍然有效
           this.getCurrentUser().catch(() => {
             // 令牌无效时会自动登出
+            console.log('令牌验证失败，执行登出');
           });
         } catch (error) {
           // JSON 解析错误或其他问题
+          console.error('恢复会话时出错:', error);
           this.logout();
         }
+      } else if (token) {
+        this.token = token;
+        this.setAuthHeader();
+        this.getCurrentUser().catch(() => {});
       }
     },
     
@@ -109,6 +116,7 @@ export const useAuthStore = defineStore('auth', {
         import('../api').then(module => {
           const api = module.default;
           api.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
+          console.log('已设置授权头');
         });
       }
     },
@@ -118,6 +126,7 @@ export const useAuthStore = defineStore('auth', {
       import('../api').then(module => {
         const api = module.default;
         delete api.defaults.headers.common['Authorization'];
+        console.log('已清除授权头');
       });
     }
   }

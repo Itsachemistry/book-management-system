@@ -1,20 +1,37 @@
 import { createApp } from 'vue'
-import { createPinia } from 'pinia' // 导入 Pinia
-
+import { createPinia } from 'pinia' 
 import App from './App.vue'
-import router from './router' // 导入路由配置 (下一步创建)
+import router from './router'
 
-// 创建 Vue 应用实例
+console.log('应用初始化开始...')
+
+// 打印所有环境变量
+console.log('env: ', import.meta.env);
+
+// 创建Vue应用实例
 const app = createApp(App)
 
-// 创建 Pinia 实例
+// 创建Pinia实例
 const pinia = createPinia()
 
-// 注册 Pinia 插件
+// 全局错误处理
+app.config.errorHandler = (err, vm, info) => {
+  console.error('Vue错误:', err)
+  console.error('错误信息:', info)
+}
+
+// 注册Pinia插件
 app.use(pinia)
-// 注册路由插件 (下一步创建)
+
+// 注册路由
 app.use(router)
 
+// 增加调试信息
+console.log('环境:', import.meta.env.MODE)
+console.log('API URL:', import.meta.env.VITE_API_BASE_URL)
+console.log('准备挂载应用...')
+
 // 挂载应用
-app.mount('#app') // 假设 public/index.html 中有一个 <div id="app"></div>
+app.mount('#app')
+console.log('应用挂载完成!')
 

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>书籍API测试</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; }
+    input, button { padding: 8px; }
+    button { cursor: pointer; background: #4CAF50; color: white; border: none; }
+    #response { margin-top: 20px; white-space: pre-wrap; background: #f5f5f5; padding: 15px; }
+  </style>
+</head>
+<body>
+  <h1>书籍API测试</h1>
+  
+  <div class="form-group">
+    <label for="isbn">ISBN:</label>
+    <input type="text" id="isbn" value="9781234567890" required>
+  </div>
+  
+  <div class="form-group">
+    <label for="name">书名:</label>
+    <input type="text" id="name" value="测试书籍" required>
+  </div>
+  
+  <div class="form-group">
+    <label for="author">作者:</label>
+    <input type="text" id="author" value="测试作者">
+  </div>
+  
+  <div class="form-group">
+    <label for="publisher">出版社:</label>
+    <input type="text" id="publisher" value="测试出版社">
+  </div>
+  
+  <div class="form-group">
+    <label for="retail_price">零售价:</label>
+    <input type="number" id="retail_price" value="29.99" step="0.01" min="0" required>
+  </div>
+  
+  <div class="form-group">
+    <label for="quantity">库存数量:</label>
+    <input type="number" id="quantity" value="10" min="0" required>
+  </div>
+  
+  <button id="submit">提交</button>
+  
+  <div id="response"></div>
+
+  <script>
+    document.getElementById('submit').addEventListener('click', async function() {
+      const responseElem = document.getElementById('response');
+      responseElem.textContent = '发送请求中...';
+      
+      const bookData = {
+        isbn: document.getElementById('isbn').value,
+        name: document.getElementById('name').value,
+        author: document.getElementById('author').value,
+        publisher: document.getElementById('publisher').value,
+        retail_price: parseFloat(document.getElementById('retail_price').value),
+        quantity: parseInt(document.getElementById('quantity').value)
+      };
+      
+      try {
+        const response = await fetch('/api/books', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(bookData),
+          credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(JSON.stringify(data));
+        }
+        
+        responseElem.textContent = '成功! 响应:\n' + JSON.stringify(data, null, 2);
+      } catch (error) {
+        responseElem.textContent = '错误:\n' + error.message;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API独立连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow: auto;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .debug-info {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-left: 4px solid #6c757d;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .instructions {
+            background-color: #e9f5fe;
+            border-left: 4px solid #56b6ff;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .code {
+            background: #2b2b2b;
+            color: #f8f8f2;
+            padding: 8px 12px;
+            border-radius: 3px;
+            font-family: monospace;
+            display: inline-block;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>API独立连接测试</h1>
+    
+    <div class="warning-box">
+        <strong>⚠️ 连接说明：</strong> 
+        <p>该测试页面用于测试与后端API的连接。确保后端服务器已运行，Flask API服务在 http://127.0.0.1:5000</p>
+    </div>
+    
+    <div class="debug-info">
+        <strong>环境信息：</strong>
+        <div id="debug-info"></div>
+    </div>
+    
+    <h2>服务可用性检查</h2>
+    <button onclick="pingServer()">检查服务器是否可用</button>
+    <div id="ping-result"></div>
+    
+    <h2>基础连接测试</h2>
+    <button onclick="testBasicConnection()">测试API根路径连接</button>
+    <div id="basic-result"></div>
+    
+    <h2>登录测试</h2>
+    <div>
+        <label>用户名: <input type="text" id="username" value="admin"></label><br>
+        <label>密码: <input type="password" id="password" value="admin123"></label><br>
+        <button onclick="testLogin()">测试登录</button>
+    </div>
+    <div id="login-result"></div>
+    
+    <div class="instructions">
+        <strong>🔍 调试提示：</strong>
+        <p>如果遇到连接问题，请检查：</p>
+        <ol>
+            <li>后端服务器是否已启动 (flask run)</li>
+            <li>浏览器控制台中的具体错误信息</li>
+            <li>后端服务器的CORS配置是否正确</li>
+        </ol>
+    </div>
+
+    <script>
+        // 显示调试信息
+        document.addEventListener('DOMContentLoaded', function() {
+            const debugInfo = document.getElementById('debug-info');
+            debugInfo.innerHTML = `
+页面URL: ${window.location.href}
+页面协议: ${window.location.protocol}
+当前时间: ${new Date().toLocaleString()}
+`;
+        });
+        
+        // 工具函数：显示结果
+        function showResult(elementId, success, message, data = null) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = `
+                <p class="${success ? 'success' : 'error'}">${message}</p>
+                ${data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : ''}
+            `;
+        }
+        
+        // 检测服务器是否可用
+        async function pingServer() {
+            const result = document.getElementById('ping-result');
+            result.innerHTML = '<p>正在检查服务器状态...</p>';
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch('/api', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const endTime = Date.now();
+                const pingTime = endTime - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult('ping-result', true, `服务器在线! 响应时间: ${pingTime}ms`, data);
+                } else {
+                    showResult('ping-result', false, `服务器返回错误: ${response.status} ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('ping-result', false, `无法连接到服务器: ${error.message}`);
+            }
+        }
+        
+        // 测试基本连接
+        async function testBasicConnection() {
+            const result = document.getElementById('basic-result');
+            result.innerHTML = '<p>正在测试连接...</p>';
+            
+            try {
+                const response = await fetch('/api', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const responseText = await response.text();
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch(e) {
+                        data = responseText;
+                    }
+                    
+                    showResult('basic-result', true, '连接成功!', data);
+                } else {
+                    showResult('basic-result', false, `连接失败: ${response.status} ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('basic-result', false, `连接错误: ${error.message}`);
+            }
+        }
+        
+        // 测试登录
+        async function testLogin() {
+            const result = document.getElementById('login-result');
+            result.innerHTML = '<p>正在登录...</p>';
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch(e) {
+                    data = responseText;
+                }
+                
+                if (response.ok) {
+                    showResult('login-result', true, '登录成功!', data);
+                } else {
+                    showResult('login-result', false, `登录失败: ${data.error || response.statusText}`, data);
+                }
+            } catch (error) {
+                showResult('login-result', false, `登录错误: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

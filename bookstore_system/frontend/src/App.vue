@@ -1,35 +1,33 @@
 // filepath: c:\Users\Elio\Desktop\book-management-system\bookstore_system\frontend\src\App.vue
 <template>
-  <div class="app-container">
-    <header v-if="authStore.isAuthenticated" class="app-header">
-      <h1>书店管理系统</h1>
-      <nav>
-        <router-link to="/">主页</router-link>
-        <router-link to="/books">图书管理</router-link>
-        <router-link to="/procurement">进货管理</router-link>
-        <router-link to="/sales">销售管理</router-link>
-        <router-link to="/finance">财务报表</router-link>
-        <router-link v-if="authStore.isAdmin" to="/users">用户管理</router-link>
-        <router-link to="/profile">个人资料</router-link>
-        <button @click="authStore.logout" class="logout-button">退出登录</button>
-      </nav>
-    </header>
-    
-    <main class="app-content">
-      <router-view />
-    </main>
+  <div id="app">
+    <!-- 新增静态标题，用于验证页面是否渲染 -->
+    <h1>书店管理系统 - 测试</h1>
+    <router-view/>
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, computed } from 'vue';
 import { useAuthStore } from './store/auth';
 
+// 新增日志，用于验证组件脚本是否执行
+console.log('App.vue loaded');
+
+// 直接引用authStore，不使用ref
 const authStore = useAuthStore();
 
+// 登出方法
+const logoutUser = () => {
+  console.log('用户点击登出');
+  authStore.logout();
+};
+
 onMounted(() => {
-  // 应用启动时初始化认证状态
+  console.log('App组件已挂载, 初始化认证');
+  // 初始化认证状态
   authStore.initialize();
+  console.log('认证状态初始化完成, 用户已登录:', authStore.isAuthenticated);
 });
 </script>
 

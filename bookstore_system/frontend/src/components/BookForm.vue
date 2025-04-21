@@ -155,7 +155,19 @@ watch(() => props.book, (newVal) => {
 // 提交表单
 function handleSubmit() {
   // 创建一个新对象，避免直接修改表单状态
-  const bookData = { ...form.value };
+  const bookData = { 
+    ...form.value,
+    // 确保价格和数量是数字类型
+    retail_price: parseFloat(form.value.retail_price),
+    quantity: parseInt(form.value.quantity, 10)
+  };
+  
+  // 如果是创建新书籍，移除is_active字段，因为后端不接受此字段
+  if (!props.isEditMode) {
+    delete bookData.is_active;
+  }
+  
+  console.log('提交书籍数据：', bookData);
   
   // 调用父组件的保存方法
   emit('save', bookData);

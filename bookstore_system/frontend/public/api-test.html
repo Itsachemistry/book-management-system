@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API连接测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>API连接测试页面</h1>
+    
+    <div>
+        <h2>前端环境信息</h2>
+        <div id="env-info"></div>
+    </div>
+    
+    <div>
+        <h2>API连接测试</h2>
+        <button onclick="testApiConnection()">测试API连接</button>
+        <div id="api-result"></div>
+    </div>
+
+    <script>
+        // 显示环境信息
+        try {
+            document.getElementById('env-info').innerHTML = `
+                <p>当前URL: ${window.location.href}</p>
+            `;
+        } catch (e) {
+            console.error(e);
+        }
+
+        // 测试API连接
+        function testApiConnection() {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.innerHTML = '<p>正在测试API连接...</p>';
+            
+            // 尝试连接API
+            fetch('http://127.0.0.1:5000/api/auth/login', {
+                method: 'OPTIONS'
+            })
+            .then(response => {
+                const statusClass = response.ok ? 'success' : 'error';
+                resultDiv.innerHTML = `
+                    <div class="${statusClass} status">
+                        <p>状态码: ${response.status}</p>
+                        <p>状态文本: ${response.statusText}</p>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `
+                    <div class="error status">
+                        <p>连接失败: ${error.message}</p>
+                        <p>请确保后端服务器已启动，并且CORS配置正确</p>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>

@@ -30,8 +30,8 @@
 
     <!-- 书籍表格 -->
     <BookTable
-      :books="bookStore.books"
-      :pagination="bookStore.pagination"
+      :books="bookStore.books || []"
+      :pagination="bookStore.pagination || { page: 1, per_page: 20, total: 0, pages: 0 }"
       :loading="bookStore.loading"
       :is-admin="authStore.isAdmin"
       @edit="handleEdit"
@@ -191,9 +191,13 @@ const selectedBook = ref({});
 // 组件挂载时加载书籍列表
 onMounted(async () => {
   try {
+    console.log('[BookInventoryView - onMounted] 组件挂载，开始加载书籍数据');
     await bookStore.loadBooks();
+    // 1. 打印组件层面获取到的数据
+    console.log('[BookInventoryView - onMounted] 书籍数据加载完成, bookStore.books:', JSON.stringify(bookStore.books, null, 2));
+    console.log('[BookInventoryView - onMounted] 分页数据加载完成, bookStore.pagination:', JSON.stringify(bookStore.pagination, null, 2));
   } catch (error) {
-    console.error('加载书籍列表失败:', error);
+    console.error('[BookInventoryView - onMounted] 加载书籍列表失败:', error);
   }
 });
 
@@ -220,12 +224,14 @@ function handlePageChange(page) {
 // 处理添加书籍
 async function handleAddBook(bookData) {
   try {
+    console.log('准备添加新书籍:', bookData);
     await bookStore.addBook(bookData);
     showAddModal.value = false;
     // 刷新列表
     await bookStore.loadBooks();
   } catch (error) {
     console.error('添加书籍失败:', error);
+    alert('添加书籍失败: ' + (error.message || '未知错误'));
   }
 }
 

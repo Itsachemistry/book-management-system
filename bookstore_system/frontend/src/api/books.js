@@ -1,21 +1,12 @@
-import api from './index';
+import apiClient from './index.js';
 
 /**
  * 获取书籍列表
  * @param {Object} params 查询参数
- * @param {string} params.search 搜索关键词
- * @param {number} params.page 页码
- * @param {number} params.per_page 每页条数
- * @param {boolean} params.active_only 是否只返回有效书籍
  * @returns {Promise<Object>} 包含书籍列表和分页信息的对象
  */
-export async function getBooks(params = {}) {
-  try {
-    const response = await api.get('/books/', { params });
-    return response.data;
-  } catch (error) {
-    handleApiError(error, '获取书籍列表失败');
-  }
+export function getBooks(params = {}) {
+  return apiClient.get('/books', { params }).then(res => res.data);
 }
 
 /**
@@ -25,7 +16,7 @@ export async function getBooks(params = {}) {
  */
 export async function getBook(id) {
   try {
-    const response = await api.get(`/books/${id}`);
+    const response = await apiClient.get(`/books/${id}`);
     return response.data;
   } catch (error) {
     handleApiError(error, '获取书籍详情失败');
@@ -39,10 +30,58 @@ export async function getBook(id) {
  */
 export async function createBook(bookData) {
   try {
-    const response = await api.post('/books/', bookData);
+    // 数据预处理：确保数值类型字段为数字，并移除is_active字段
+    const processedData = {
+      isbn: bookData.isbn,
+      name: bookData.name,
+      author: bookData.author || '',
+      publisher: bookData.publisher || '',
+      retail_price: Number(bookData.retail_price),
+      quantity: Number(bookData.quantity)
+      // 注意：这里不包含is_active字段
+    };
+    
+    // 打印请求数据，帮助调试
+    console.log('创建书籍请求数据:', {
+      请求URL: `${apiClient.defaults.baseURL}/books`,
+      数据: processedData
+    });
+    
+    const response = await apiClient.post('/books', processedData);
+    console.log('创建书籍成功响应:', response.data);
     return response.data;
   } catch (error) {
-    handleApiError(error, '创建书籍失败');
+    console.error('创建书籍失败:', error);
+    
+    // 更详细的错误处理
+    if (error.response) {
+      const { status, data } = error.response;
+      console.error(`服务器返回 ${status} 错误:`, data);
+      
+      // 处理常见错误情况
+      if (status === 400) {
+        if (data.error) {
+          if (typeof data.error === 'string') {
+            throw new Error(`验证错误: ${data.error}`);
+          } else if (typeof data.error === 'object') {
+            // 格式化对象错误消息
+            const errorMessages = Object.entries(data.error)
+              .map(([field, errors]) => {
+                if (Array.isArray(errors)) return `${field}: ${errors.join(', ')}`;
+                return `${field}: ${errors}`;
+              })
+              .join('; ');
+            throw new Error(`表单验证失败: ${errorMessages}`);
+          }
+        }
+      } 
+      
+      // 默认错误消息
+      throw new Error(data.error || '添加书籍失败，请稍后重试');
+    }
+    
+    // 网络或其他错误
+    throw new Error('无法连接服务器或网络错误');
   }
 }
 
@@ -54,7 +93,7 @@ export async function createBook(bookData) {
  */
 export async function updateBook(id, bookData) {
   try {
-    const response = await api.put(`/books/${id}`, bookData);
+    const response = await apiClient.put(`/books/${id}`, bookData);
     return response.data;
   } catch (error) {
     handleApiError(error, '更新书籍失败');
@@ -68,7 +107,7 @@ export async function updateBook(id, bookData) {
  */
 export async function deleteBook(id) {
   try {
-    const response = await api.delete(`/books/${id}`);
+    const response = await apiClient.delete(`/books/${id}`);
     return response.data;
   } catch (error) {
     handleApiError(error, '删除书籍失败');
@@ -82,21 +121,34 @@ export async function deleteBook(id) {
  */
 function handleApiError(error, defaultMessage) {
   if (error.response) {
-    // 服务器返回了错误状态码
-    const message = error.response.data.error || defaultMessage;
-    
+    // 获取后端返回的 error 字段
+    const errData = error.response.data.error;
+    let message = defaultMessage;
+
+    if (typeof errData === 'string') {
+      message = errData;
+    } else if (errData && typeof errData === 'object') {
+      // 取第一个字段的第一个错误
+      const key = Object.keys(errData)[0];
+      const val = errData[key];
+      if (Array.isArray(val)) {
+        message = val[0];
+      } else if (typeof val === 'string') {
+        message = val;
+      } else {
+        message = JSON.stringify(errData);
+      }
+    }
+
     if (error.response.status === 401) {
       throw new Error('会话已过期，请重新登录');
     } else if (error.response.status === 403) {
       throw new Error('您没有执行此操作的权限');
     }
-    
     throw new Error(message);
   } else if (error.request) {
-    // 请求已发出但未收到响应
     throw new Error('无法连接到服务器，请检查网络连接');
   } else {
-    // 请求配置有误
     throw new Error('发送请求时出错');
   }
 }

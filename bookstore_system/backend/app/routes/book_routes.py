@@ -1,208 +1,195 @@
 from flask import Blueprint, request, jsonify, g, abort
+from werkzeug.exceptions import BadRequest
 from ..models.book import Book
-from ..schemas.book_schema import BookSchema, BookCreateSchema, BookUpdateSchema
+from ..schemas.book_schema import BookSchema, BookCreateSchema, BookUpdateSchema, BookQuerySchema
 from ..utils.decorators import login_required, admin_required
 from .. import db
 from sqlalchemy import or_
+from marshmallow import ValidationError
 
 # 创建蓝图
-book_bp = Blueprint('books', __name__)
+book_bp = Blueprint('book', __name__, url_prefix='/api/books')
 
 @book_bp.route('/', methods=['GET'])
-@login_required
-def get_books():
-    """
-    获取所有书籍的列表API
-    
-    支持查询参数:
-    - search: 按书名、作者、ISBN搜索
-    - page: 页码
-    - per_page: 每页书籍数量
-    - active_only: 是否只返回有效(非逻辑删除)的书籍
-    
-    返回:
-    {
-        "books": [书籍列表],
-        "pagination": {
-            "page": 当前页码,
-            "per_page": 每页数量,
-            "total": 总数,
-            "pages": 总页数
-        }
-    }
-    """
-    # 获取查询参数
-    search = request.args.get('search', '')
+def list_books():
+    search = request.args.get('search', '', type=str)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
-    active_only = request.args.get('active_only', 'true').lower() == 'true'
-    
-    # 构建查询
+    active_only = request.args.get('active_only', 'false').lower() == 'true'
+
     query = Book.query
-    
-    # 是否只查询有效书籍
-    if active_only:
-        query = query.filter_by(is_active=True)
-    
-    # 搜索功能
     if search:
-        query = query.filter(
-            or_(
-                Book.name.ilike(f'%{search}%'),
-                Book.author.ilike(f'%{search}%'),
-                Book.isbn.ilike(f'%{search}%')
-            )
-        )
-    
-    # 分页查询
-    pagination = query.order_by(Book.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
-    
-    books = pagination.items
-    
-    # 序列化
-    book_schema = BookSchema(many=True)
-    book_data = book_schema.dump(books)
-    
+        query = query.filter(Book.name.ilike(f'%{search}%'))
+    if active_only:
+        query = query.filter(Book.is_active.is_(True))
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    books = BookSchema(many=True).dump(pagination.items)
+
     return jsonify({
-        'books': book_data,
-        'pagination': {
-            'page': pagination.page,
-            'per_page': pagination.per_page,
-            'total': pagination.total,
-            'pages': pagination.pages
-        }
+        'items': books,
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'page': page,
+        'per_page': per_page
     })
 
 @book_bp.route('/<isbn_or_id>', methods=['GET'])
 @login_required
 def get_book(isbn_or_id):
     """
-    获取单本书籍详情API
-    
+    获取单本书籍详情
+    ---
     参数:
-    - isbn_or_id: 书籍的ISBN或ID
-    
+      - isbn_or_id: 书籍ID或ISBN
+    权限: 任何登录用户
     返回:
-    {书籍详情}
+      - 200: 返回书籍详情
+      - 404: 书籍未找到
     """
-    # 尝试通过ID查找
-    try:
-        if isbn_or_id.isdigit():
-            book = Book.query.get_or_404(int(isbn_or_id))
-        else:
-            book = Book.query.filter_by(isbn=isbn_or_id).first_or_404()
-    except:
-        abort(404, description="书籍不存在")
+    # 尝试通过ID或ISBN查找书籍
+    book = None
     
-    # 序列化
-    book_schema = BookSchema()
-    book_data = book_schema.dump(book)
+    # 先尝试通过ID查找
+    if isbn_or_id.isdigit():
+        book = Book.query.get(int(isbn_or_id))
     
-    return jsonify(book_data)
+    # 如果没找到，通过ISBN查找
+    if book is None:
+        book = Book.query.filter_by(isbn=isbn_or_id).first()
+    
+    # 如果仍然没找到，返回404
+    if book is None:
+        abort(404, description="书籍未找到")
+    
+    return jsonify(BookSchema().dump(book))
 
-@book_bp.route('/', methods=['POST'])
-@admin_required  # 只有管理员可以添加书籍
+@book_bp.route('', methods=['POST'])
+@admin_required
 def create_book():
-    """
-    创建新书籍API
-    
-    请求体:
-    {
-        "isbn": "书籍ISBN",
-        "name": "书籍名称",
-        "publisher": "出版商(可选)",
-        "author": "作者(可选)",
-        "retail_price": 零售价格,
-        "quantity": 初始库存数量
-    }
-    
-    返回:
-    {新创建的书籍详情}
-    """
-    # 反序列化并验证请求数据
+    # 1. JSON 解析校验
+    try:
+        payload = request.get_json()
+    except BadRequest:
+        return jsonify({"error": "请求体必须为 JSON 格式"}), 400
+    if payload is None:
+        return jsonify({"error": "请求体不能为空"}), 400
+
+    # 2. 数据校验
     schema = BookCreateSchema()
-    data = schema.load(request.get_json())
-    
-    # 创建新书籍
-    book = Book(
-        isbn=data['isbn'],
-        name=data['name'],
-        publisher=data.get('publisher'),
-        author=data.get('author'),
-        retail_price=data['retail_price'],
-        quantity=data.get('quantity', 0)
-    )
-    
-    # 保存到数据库
+    try:
+        data = schema.load(payload)
+    except ValidationError as err:
+        return jsonify({"error": err.messages}), 400
+
+    # 3. ISBN 唯一性检查
+    existing = Book.query.filter_by(isbn=data['isbn']).first()
+    if existing:
+        return jsonify({"error": "具有相同 ISBN 的书籍已存在"}), 409
+
+    # 4. 创建并保存
+    book = Book(**data)
     db.session.add(book)
-    db.session.commit()
-    
-    # 返回创建的书籍
-    book_schema = BookSchema()
-    return jsonify(book_schema.dump(book)), 201
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"保存书籍时发生错误: {str(e)}"}), 500
 
-@book_bp.route('/<int:book_id>', methods=['PUT'])
-@admin_required  # 只有管理员可以更新书籍
-def update_book(book_id):
+    return jsonify(BookSchema().dump(book)), 201
+
+@book_bp.route('/<isbn_or_id>', methods=['PUT'])
+@admin_required
+def update_book(isbn_or_id):
     """
-    更新书籍信息API
-    
+    更新书籍信息
+    ---
     参数:
-    - book_id: 书籍ID
-    
-    请求体:
-    {
-        "name": "书籍名称(可选)",
-        "publisher": "出版商(可选)",
-        "author": "作者(可选)",
-        "retail_price": 零售价格(可选),
-        "quantity": 库存数量(可选),
-        "is_active": 是否有效(可选)
-    }
-    
+      - isbn_or_id: 书籍ID或ISBN
+    请求体: BookUpdateSchema
+    权限: 仅管理员
     返回:
-    {更新后的书籍详情}
+      - 200: 更新成功，返回更新后的书籍详情
+      - 400: 验证失败
+      - 404: 书籍未找到
     """
-    # 获取书籍
-    book = Book.query.get_or_404(book_id)
+    # 首先找到要更新的书籍
+    book = None
     
-    # 反序列化并验证请求数据
+    # 尝试通过ID查找
+    if isbn_or_id.isdigit():
+        book = Book.query.get(int(isbn_or_id))
+    
+    # 如果没找到，尝试通过ISBN查找
+    if book is None:
+        book = Book.query.filter_by(isbn=isbn_or_id).first()
+    
+    # 如果仍然没找到，返回404
+    if book is None:
+        abort(404, description="要更新的书籍未找到")
+    
+    # 验证并加载更新数据
     schema = BookUpdateSchema()
-    data = schema.load(request.get_json())
+    try:
+        data = schema.load(request.json)
+    except ValidationError as e:
+        return jsonify({"error": e.messages}), 400
     
-    # 更新字段
-    for field, value in data.items():
-        setattr(book, field, value)
+    # 如果要更新ISBN，检查新ISBN是否与其他书籍冲突
+    if 'isbn' in data and data['isbn'] != book.isbn:
+        existing_book = Book.query.filter_by(isbn=data['isbn']).first()
+        if existing_book:
+            return jsonify({"error": "具有相同ISBN的其他书籍已存在"}), 409
     
-    # 保存到数据库
-    db.session.commit()
+    # 更新书籍属性
+    for key, value in data.items():
+        setattr(book, key, value)
     
-    # 返回更新后的书籍
-    book_schema = BookSchema()
-    return jsonify(book_schema.dump(book))
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"更新书籍时发生错误: {str(e)}"}), 500
+    
+    return jsonify(BookSchema().dump(book))
 
-@book_bp.route('/<int:book_id>', methods=['DELETE'])
-@admin_required  # 只有管理员可以删除书籍
-def delete_book(book_id):
+@book_bp.route('/<isbn_or_id>', methods=['DELETE'])
+@admin_required
+def delete_book(isbn_or_id):
     """
-    删除书籍API（逻辑删除）
-    
+    删除(下架)书籍
+    ---
     参数:
-    - book_id: 书籍ID
-    
+      - isbn_or_id: 书籍ID或ISBN
+    权限: 仅管理员
     返回:
-    { "message": "书籍已删除" }
+      - 200: 删除(下架)成功
+      - 404: 书籍未找到
+    注意: 这是逻辑删除，将书籍标记为未激活而不是物理删除记录
     """
-    # 获取书籍
-    book = Book.query.get_or_404(book_id)
+    # 首先找到要删除的书籍
+    book = None
     
-    # 执行逻辑删除（将is_active设为False）
+    # 尝试通过ID查找
+    if isbn_or_id.isdigit():
+        book = Book.query.get(int(isbn_or_id))
+    
+    # 如果没找到，尝试通过ISBN查找
+    if book is None:
+        book = Book.query.filter_by(isbn=isbn_or_id).first()
+    
+    # 如果仍然没找到，返回404
+    if book is None:
+        abort(404, description="要删除的书籍未找到")
+    
+    # 将书籍标记为非活动（逻辑删除）
     book.is_active = False
-    db.session.commit()
     
-    return jsonify({"message": "书籍已删除"})
-
-# 注意: 完成此文件后，需要在app/__init__.py中注册这个Blueprint
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"删除书籍时发生错误: {str(e)}"}), 500
+    
+    return jsonify({"message": "书籍已成功下架"})
 

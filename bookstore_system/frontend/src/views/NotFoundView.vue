@@ -1,49 +1,50 @@
 <template>
-  <div class="not-found">
+  <div class="not-found-container">
     <h1>404</h1>
-    <h2>页面未找到</h2>
-    <p>您访问的页面不存在或已被移除。</p>
+    <h2>页面不存在</h2>
+    <p>您访问的页面不存在或已被移除</p>
     <router-link to="/" class="back-button">返回首页</router-link>
   </div>
 </template>
 
+<script setup>
+// 不需要特殊逻辑
+</script>
+
 <style scoped>
-.not-found {
+.not-found-container {
   text-align: center;
-  padding: 4rem 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
+  padding: 3rem;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 h1 {
-  font-size: 5rem;
-  margin-bottom: 0;
-  color: #3498db;
+  font-size: 6rem;
+  margin: 0;
+  color: #e74c3c;
 }
 
 h2 {
+  margin: 0;
   font-size: 2rem;
+  color: #34495e;
   margin-bottom: 1rem;
-  color: #2c3e50;
 }
 
 p {
-  font-size: 1.2rem;
-  margin-bottom: 2rem;
   color: #7f8c8d;
+  margin-bottom: 2rem;
 }
 
 .back-button {
   display: inline-block;
-  padding: 0.75rem 1.5rem;
   background-color: #3498db;
   color: white;
-  text-decoration: none;
+  padding: 0.75rem 1.5rem;
   border-radius: 4px;
-  transition: background-color 0.3s;
+  text-decoration: none;
+  transition: background-color 0.2s;
 }
 
 .back-button:hover {

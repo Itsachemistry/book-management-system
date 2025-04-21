@@ -39,18 +39,45 @@ export const useBookStore = defineStore('book', {
       
       this.loading = true;
       this.error = null;
+      console.log('[Store Action - loadBooks] 开始加载书籍, 参数:', searchParams);
       
       try {
+        // 1. 检查 API 调用和参数 (getBooks 在 api/books.js 中调用 /api/books)
         const result = await getBooks(searchParams);
-        this.books = result.books;
-        this.pagination = result.pagination;
-        return result;
+        // 2. 打印完整的 API 响应数据
+        console.log('[Store Action - loadBooks] 收到 API 响应:', JSON.stringify(result, null, 2));
+        
+        // 3. 修正从 response.data 提取数据的方式
+        //    后端返回的是 result.items 和分散的分页字段
+        if (result && Array.isArray(result.items)) {
+          this.books = result.items;
+          this.pagination = {
+            page: result.page,
+            per_page: result.per_page,
+            total: result.total,
+            pages: result.pages
+          };
+        } else {
+          console.warn('[Store Action - loadBooks] API 响应格式不符合预期:', result);
+          this.books = []; // 清空或保持旧数据？这里选择清空
+          this.pagination = { page: 1, per_page: 20, total: 0, pages: 0 }; // 重置分页
+        }
+
+        // 4. 打印更新后的 state
+        console.log('[Store Action - loadBooks] 更新后 state.books:', JSON.stringify(this.books, null, 2));
+        console.log('[Store Action - loadBooks] 更新后 state.pagination:', JSON.stringify(this.pagination, null, 2));
+        
+        return result; // 返回原始结果或处理后的数据，取决于调用者需要什么
       } catch (error) {
         this.error = error.message;
-        console.error('加载书籍列表失败:', error);
+        console.error('[Store Action - loadBooks] 加载书籍列表失败:', error);
+        // 清空数据以避免显示旧的或错误的数据
+        this.books = [];
+        this.pagination = { page: 1, per_page: 20, total: 0, pages: 0 };
         throw error;
       } finally {
         this.loading = false;
+        console.log('[Store Action - loadBooks] 加载结束');
       }
     },
     
@@ -80,32 +107,56 @@ export const useBookStore = defineStore('book', {
      * @param {Object} bookData 书籍数据
      */
     async addBook(bookData) {
+      console.log('addBook payload →', bookData);
       this.loading = true;
       this.error = null;
       
       try {
         const book = await createBook(bookData);
         
-        // 可选：将新书籍添加到列表开头（如果当前页是第一页）
-        if (this.pagination.page === 1) {
-          this.books.unshift(book);
-          
-          // 保持列表长度一致
-          if (this.books.length > this.pagination.per_page) {
-            this.books.pop();
+        // 确保 books 是数组并且 pagination 存在且有效
+        if (Array.isArray(this.books) && this.pagination && typeof this.pagination.page === 'number') {
+          // 可选：将新书籍添加到列表开头（如果当前页是第一页）
+          if (this.pagination.page === 1) {
+            this.books.unshift(book);
+            
+            // 确保 per_page 是有效数字
+            if (typeof this.pagination.per_page === 'number' && this.pagination.per_page > 0) {
+              // 保持列表长度一致
+              if (this.books.length > this.pagination.per_page) {
+                this.books.pop();
+              }
+              
+              // 确保 total 是有效数字
+              if (typeof this.pagination.total === 'number') {
+                // 更新总数
+                this.pagination.total += 1;
+                // 更新总页数
+                this.pagination.pages = Math.ceil(this.pagination.total / this.pagination.per_page);
+              } else {
+                 console.warn('addBook: pagination.total is not a number. Skipping total/pages update.');
+                 // 可以考虑重新加载书籍列表以获取正确的 total
+                 // this.loadBooks(); 
+              }
+            } else {
+              console.warn('addBook: pagination.per_page is invalid. Skipping list length adjustment and pages update.');
+            }
           }
-          
-          // 更新总数
-          this.pagination.total += 1;
-          // 更新总页数
-          this.pagination.pages = Math.ceil(this.pagination.total / this.pagination.per_page);
+        } else {
+           console.warn('addBook: State (books or pagination) is not ready for update. Skipping local state update.');
+           // 考虑在添加成功后强制刷新列表
+           // this.loadBooks(); 
         }
         
         return book;
       } catch (error) {
-        this.error = error.message;
-        console.error('创建书籍失败:', error);
-        throw error;
+        // 调试用：打印后端返回的详细信息
+        console.error('addBook caught error:', error);
+        console.error('addBook error.response.data:', error.response?.data);
+        // 抛出更具体的错误信息，而不是原始的 error.message，因为它可能来自 API 调用
+        // 如果错误发生在状态更新阶段，error.message 可能不准确
+        this.error = '添加书籍后更新前端状态失败: ' + (error instanceof Error ? error.message : String(error));
+        throw new Error(this.error); // 重新抛出包装后的错误
       } finally {
         this.loading = false;
       }
