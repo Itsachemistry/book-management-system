@@ -10,7 +10,21 @@ export async function createUser(userData) {
     const response = await api.post('/users/', userData);
     return response.data;
   } catch (error) {
-    handleApiError(error, '创建用户失败');
+    if (error.response && error.response.data) {
+      // 提取详细的验证错误信息
+      const errorResponse = error.response.data;
+      const errorMessage = errorResponse.error || '创建用户失败';
+      
+      // 创建一个包含错误消息和详细信息的自定义错误对象
+      const customError = new Error(errorMessage);
+      if (errorResponse.details) {
+        customError.details = errorResponse.details;
+      }
+      throw customError;
+    }
+    
+    // 兜底的错误处理
+    throw new Error('创建用户失败');
   }
 }
 

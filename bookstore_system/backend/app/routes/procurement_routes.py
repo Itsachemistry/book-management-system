@@ -240,11 +240,12 @@ def stock_in(order_id):
         if item.book_id:
             book = Book.query.get(item.book_id)
             if book:
-                # 增加库存
-                book.quantity += item.quantity
-                # 更新零售价（如果提供了）
-                if item.suggested_retail_price:
-                    book.retail_price = item.suggested_retail_price
+                # 增加库存并可能更新零售价
+                suggested_price = item.suggested_retail_price if item.suggested_retail_price else None
+                book.increase_stock(item.quantity, suggested_price)
+                
+                # 添加日志以便调试
+                print(f"Book {book.id} updated. New quantity: {book.quantity}, Updated at: {book.updated_at}")
         else:
             # 创建新书
             book = Book(
@@ -264,10 +265,61 @@ def stock_in(order_id):
     # 更新订单状态
     order.status = ORDER_STATUS['STOCKED']
     
-    db.session.commit()
-    
-    return jsonify({
-        'message': '图书已成功入库',
-        'order': PurchaseOrderSchema().dump(order)
-    })
+    try:
+        # --- 添加调试代码 ---
+        print("\n--- Debug: Before Commit ---")
+        from sqlalchemy import inspect as sa_inspect
+        dirty_objects = [obj for obj in db.session.dirty]
+        print(f"Dirty objects in session: {dirty_objects}")
+
+        books_to_check = []
+        for item in order.items:
+             if item.book_id:
+                 book_in_session = db.session.get(Book, item.book_id)
+                 if book_in_session:
+                     books_to_check.append(book_in_session)
+                     print(f"Book {book_in_session.id} state: Qty={book_in_session.quantity}, UpdatedAt={book_in_session.updated_at}")
+                     try:
+                         inst_state = sa_inspect(book_in_session)
+                         # 检查对象是否 dirty
+                         is_dirty = bool(inst_state.dirty)
+                         print(f"  Is dirty: {is_dirty}")
+                         # 暂时注释掉打印详细历史记录的部分，避免潜在错误
+                         # if is_dirty:
+                         #     print(f"  Dirty attributes history:")
+                         #     for attr in inst_state.attrs:
+                         #         if attr.history.has_changes():
+                         #             print(f"    {attr.key}: {attr.history}")
+                     except Exception as inspect_err:
+                         print(f"  Error during inspection: {inspect_err}") # 打印检查时发生的错误
+
+        print("--- End Debug ---\n")
+        # --- 调试代码结束 ---
+
+        # 强制刷新会话中的所有变更
+        # db.session.flush() # flush 也可能触发错误，暂时注释掉观察
+        # 提交事务
+        print("Attempting commit...") # 添加提交前的打印
+        db.session.commit()
+        print("Commit successful.") # 添加提交后的打印
+
+        # --- 添加提交后验证代码 ---
+        print("Re-fetching books after commit to check updated_at:")
+        for item in order.items:
+            if item.book_id:
+                refreshed_book = db.session.get(Book, item.book_id)
+                if refreshed_book:
+                    print(f"  Book {refreshed_book.id} after commit - Qty: {refreshed_book.quantity}, Updated At: {refreshed_book.updated_at}")
+        # --- 提交后验证代码结束 ---
+
+        return jsonify({
+            'message': '图书已成功入库',
+            'order': PurchaseOrderSchema().dump(order)
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"!!! Error during commit or post-commit: {str(e)}") # 打印提交或之后发生的错误
+        import traceback
+        traceback.print_exc() # 强制打印完整的 Traceback
+        abort(500, description=f"入库操作失败: {str(e)}")
 

@@ -131,15 +131,23 @@ def update_book(isbn_or_id):
     # 验证并加载更新数据
     schema = BookUpdateSchema()
     try:
-        data = schema.load(request.json)
+        # 使用 request.get_json() 获取原始 JSON 数据
+        json_data = request.get_json()
+        if not json_data:
+             return jsonify({"error": "请求体不能为空或非 JSON 格式"}), 400
+        data = schema.load(json_data)
     except ValidationError as e:
         return jsonify({"error": e.messages}), 400
-    
-    # 如果要更新ISBN，检查新ISBN是否与其他书籍冲突
+    except Exception as e: # 捕获可能的 JSON 解析错误
+        return jsonify({"error": f"解析请求数据时出错: {str(e)}"}), 400
+
+    # 恢复 ISBN 唯一性检查逻辑
+    # 如果请求中包含 'isbn' 并且它与当前书籍的 ISBN 不同
     if 'isbn' in data and data['isbn'] != book.isbn:
-        existing_book = Book.query.filter_by(isbn=data['isbn']).first()
+        # 检查新的 ISBN 是否已被其他书籍使用
+        existing_book = Book.query.filter(Book.isbn == data['isbn'], Book.id != book.id).first()
         if existing_book:
-            return jsonify({"error": "具有相同ISBN的其他书籍已存在"}), 409
+            return jsonify({"error": {"isbn": ["具有相同ISBN的其他书籍已存在"]}}), 409 # 返回更符合 Marshmallow 错误格式的响应
     
     # 更新书籍属性
     for key, value in data.items():
@@ -149,7 +157,9 @@ def update_book(isbn_or_id):
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"更新书籍时发生错误: {str(e)}"}), 500
+        # 记录更详细的错误日志会更好
+        print(f"Error updating book: {str(e)}") # 临时打印，建议使用日志库
+        return jsonify({"error": f"更新书籍时发生数据库错误"}), 500 # 隐藏具体错误细节
     
     return jsonify(BookSchema().dump(book))
 
@@ -157,15 +167,15 @@ def update_book(isbn_or_id):
 @admin_required
 def delete_book(isbn_or_id):
     """
-    删除(下架)书籍
+    删除书籍 (物理删除)
     ---
     参数:
       - isbn_or_id: 书籍ID或ISBN
     权限: 仅管理员
     返回:
-      - 200: 删除(下架)成功
+      - 200: 删除成功
       - 404: 书籍未找到
-    注意: 这是逻辑删除，将书籍标记为未激活而不是物理删除记录
+    注意: 这是物理删除，将从数据库中永久移除记录
     """
     # 首先找到要删除的书籍
     book = None
@@ -182,14 +192,16 @@ def delete_book(isbn_or_id):
     if book is None:
         abort(404, description="要删除的书籍未找到")
     
-    # 将书籍标记为非活动（逻辑删除）
-    book.is_active = False
+    # 执行物理删除
+    db.session.delete(book)
     
     try:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"删除书籍时发生错误: {str(e)}"}), 500
+        # 建议使用日志记录错误
+        print(f"Error deleting book: {str(e)}") 
+        return jsonify({"error": f"删除书籍时发生数据库错误"}), 500
     
-    return jsonify({"message": "书籍已成功下架"})
+    return jsonify({"message": "书籍已成功删除"})
 

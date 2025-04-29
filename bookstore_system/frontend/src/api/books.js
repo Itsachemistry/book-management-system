@@ -1,12 +1,37 @@
 import apiClient from './index.js';
 
 /**
- * 获取书籍列表
- * @param {Object} params 查询参数
- * @returns {Promise<Object>} 包含书籍列表和分页信息的对象
+ * 获取图书列表
+ * @param {Object} params 查询参数 { active_only, per_page, page, ... }
+ * @returns {Promise<Object>} 包含图书列表和分页信息的对象
  */
-export function getBooks(params = {}) {
-  return apiClient.get('/books', { params }).then(res => res.data);
+export async function getBooks(params = {}) {
+  console.log('开始获取图书列表, 参数:', params);
+  try {
+    // 记录请求前状态
+    console.log('准备发送GET请求到/books/');
+    
+    const response = await apiClient.get('/books/', { params });
+    
+    // 记录请求成功状态
+    console.log('获取图书列表成功:', response.status, response.statusText);
+    console.log('获取到图书数量:', response.data.items ? response.data.items.length : 0);
+    
+    return response.data;
+  } catch (error) {
+    console.error('获取图书列表详细错误:', {
+      message: error.message,
+      config: error.config,
+      response: error.response ? {
+        status: error.response.status,
+        data: error.response.data
+      } : '无响应',
+      code: error.code,
+      isAxiosError: error.isAxiosError
+    });
+    
+    handleApiError(error, '获取图书列表失败');
+  }
 }
 
 /**
@@ -93,7 +118,22 @@ export async function createBook(bookData) {
  */
 export async function updateBook(id, bookData) {
   try {
-    const response = await apiClient.put(`/books/${id}`, bookData);
+    // 数据预处理：确保所有字段使用正确的类型，移除isbn字段
+    const processedData = {
+      name: bookData.name,
+      author: bookData.author || '',
+      publisher: bookData.publisher || '',
+      retail_price: Number(bookData.retail_price),  // 转为数字
+      quantity: Number(bookData.quantity),          // 转为数字
+      is_active: Boolean(bookData.is_active)        // 显式转换为布尔值
+    };
+    
+    console.log('更新书籍请求数据:', {
+      请求URL: `${apiClient.defaults.baseURL}/books/${id}`,
+      数据: processedData
+    });
+    
+    const response = await apiClient.put(`/books/${id}`, processedData);
     return response.data;
   } catch (error) {
     handleApiError(error, '更新书籍失败');
@@ -120,8 +160,14 @@ export async function deleteBook(id) {
  * @param {string} defaultMessage 默认错误信息
  */
 function handleApiError(error, defaultMessage) {
+  console.group('API错误处理');
+  console.error('原始错误:', error);
+  
   if (error.response) {
     // 获取后端返回的 error 字段
+    console.log('服务器返回了错误响应:', error.response.status, error.response.statusText);
+    console.log('响应数据:', error.response.data);
+    
     const errData = error.response.data.error;
     let message = defaultMessage;
 
@@ -141,15 +187,26 @@ function handleApiError(error, defaultMessage) {
     }
 
     if (error.response.status === 401) {
+      console.error('认证失败：需要重新登录');
       throw new Error('会话已过期，请重新登录');
     } else if (error.response.status === 403) {
+      console.error('权限不足');
       throw new Error('您没有执行此操作的权限');
     }
+    
+    console.error('最终错误消息:', message);
+    console.groupEnd();
     throw new Error(message);
   } else if (error.request) {
+    // 请求已发送但没有收到响应
+    console.error('请求已发送但没有收到响应');
+    console.groupEnd();
     throw new Error('无法连接到服务器，请检查网络连接');
   } else {
-    throw new Error('发送请求时出错');
+    // 设置请求时发生的错误
+    console.error('请求配置错误:', error.message);
+    console.groupEnd();
+    throw new Error(`发送请求时出错: ${error.message}`);
   }
 }
 

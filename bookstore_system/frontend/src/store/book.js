@@ -172,7 +172,20 @@ export const useBookStore = defineStore('book', {
       this.error = null;
       
       try {
-        const updatedBook = await updateBook(id, bookData);
+        // 过滤数据，只保留后端接受的字段，移除isbn字段
+        const validFields = {
+          name: bookData.name,
+          author: bookData.author || '',
+          publisher: bookData.publisher || '',
+          retail_price: Number(bookData.retail_price),
+          quantity: Number(bookData.quantity),
+          is_active: Boolean(bookData.is_active)
+        };
+        
+        // 添加详细日志
+        console.log(`准备更新书籍(ID: ${id})，过滤后数据:`, validFields);
+        const updatedBook = await updateBook(id, validFields);
+        console.log('书籍更新成功，返回数据:', updatedBook);
         
         // 更新当前选中的书籍
         if (this.currentBook && this.currentBook.id === id) {

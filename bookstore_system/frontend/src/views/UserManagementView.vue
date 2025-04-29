@@ -197,11 +197,21 @@ async function createNewUser() {
       role: 'NORMAL_ADMIN'
     };
     
-    // 重新获取用户列表以显示新用户
-    await fetchUsers();
+    // 刷新用户列表
+    fetchUsers();
   } catch (err) {
-    formError.value = err.message;
-    console.error('创建用户失败:', err);
+    // 处理详细的验证错误
+    if (err.details) {
+      if (err.details.employee_id) {
+        formError.value = `员工ID错误: ${err.details.employee_id.join(', ')}`;
+      } else if (err.details.username) {
+        formError.value = `用户名错误: ${err.details.username.join(', ')}`;
+      } else {
+        formError.value = err.message || "创建用户失败";
+      }
+    } else {
+      formError.value = err.message || "创建用户失败";
+    }
   } finally {
     formSubmitting.value = false;
   }

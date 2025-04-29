@@ -30,7 +30,7 @@ export const useAuthStore = defineStore('auth', {
         this.status = 'success';
         
         // 保存到 localStorage（持久化）
-        localStorage.setItem('token', response.token);
+        localStorage.setItem('auth_token', response.token);  // 修改为'auth_token'
         localStorage.setItem('user', JSON.stringify(response.user));
         
         // 设置 axios 默认授权头
@@ -52,7 +52,7 @@ export const useAuthStore = defineStore('auth', {
       this.error = null;
       
       // 清除 localStorage
-      localStorage.removeItem('token');
+      localStorage.removeItem('auth_token');  // 修改为'auth_token'
       localStorage.removeItem('user');
       
       // 清除 axios 授权头
@@ -83,8 +83,9 @@ export const useAuthStore = defineStore('auth', {
     
     initialize() {
       console.log('初始化认证状态...');
+      const token = localStorage.getItem('auth_token');
+      console.log('从localStorage读取到token:', token ? '存在' : '不存在');
       // 应用加载时从 localStorage 恢复会话
-      const token = localStorage.getItem('token');
       const user = localStorage.getItem('user');
       
       if (token && user) {

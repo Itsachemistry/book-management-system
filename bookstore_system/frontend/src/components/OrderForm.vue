@@ -64,6 +64,8 @@
               <label>选择图书</label>
               <select v-model="item.book_id" class="form-control" required>
                 <option value="">-- 请选择图书 --</option>
+                <option v-if="!books.length && !loadingBooks" value="" disabled>暂无可选图书</option>
+                <option v-if="loadingBooks" value="" disabled>加载中...</option>
                 <option v-for="book in books" :key="book.id" :value="book.id">
                   {{ book.name }} ({{ book.isbn }}) - {{ book.author }}
                 </option>
@@ -203,6 +205,7 @@ export default {
     // 状态变量
     const books = ref([]);
     const submitting = ref(false);
+    const loadingBooks = ref(false);
     
     // 订单数据
     const orderData = reactive({
@@ -213,11 +216,34 @@ export default {
     
     // 获取图书列表
     const loadBooks = async () => {
+      loadingBooks.value = true;
+      console.log('开始加载图书列表...');
       try {
-        const response = await getBooks();
-        books.value = response.books;
+        console.log('调用getBooks API...');
+        const response = await getBooks({ active_only: true, per_page: 100 });
+        console.log('API返回响应:', response);
+        
+        if (response && response.items) {
+          books.value = response.items;
+          console.log(`已成功加载${books.value.length}本图书`);
+        } else {
+          console.warn('API返回了响应，但没有找到items属性:', response);
+          books.value = [];
+        }
       } catch (error) {
-        console.error('Failed to load books:', error);
+        console.error('加载图书失败的详细错误:', error);
+        
+        // 错误类型分析
+        if (error instanceof TypeError) {
+          console.error('类型错误，可能是响应结构不符合预期');
+        }
+        
+        // 尝试设置空数组以避免模板错误
+        books.value = [];
+        alert(`加载图书列表失败: ${error.message}`);
+      } finally {
+        loadingBooks.value = false;
+        console.log('图书加载过程结束');
       }
     };
     
@@ -336,6 +362,7 @@ export default {
       books,
       orderData,
       submitting,
+      loadingBooks,
       addItem,
       removeItem,
       calculateSubtotal,

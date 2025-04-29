@@ -9,8 +9,14 @@ const apiClient = axios.create({
   withCredentials: true
 });
 
-// 添加认证令牌的拦截器
+// 添加请求拦截器
 apiClient.interceptors.request.use(config => {
+  console.log(`请求: ${config.method.toUpperCase()} ${config.url}`, {
+    params: config.params,
+    data: config.data,
+    headers: config.headers
+  });
+
   // 从localStorage获取token
   const token = localStorage.getItem('auth_token');
   
@@ -31,6 +37,12 @@ apiClient.interceptors.request.use(config => {
         config.data.quantity = Number(config.data.quantity);
       }
       
+      // 处理布尔类型
+      if (config.data.is_active !== undefined) {
+        // 确保是布尔值类型，而不是数字类型
+        config.data.is_active = Boolean(config.data.is_active);
+      }
+      
       // 特别处理创建书籍的API调用 - 移除is_active字段
       if (config.url === '/books' && config.method === 'post') {
         const { is_active, ...dataWithoutIsActive } = config.data;
@@ -41,13 +53,19 @@ apiClient.interceptors.request.use(config => {
   
   return config;
 }, error => {
+  console.error('请求拦截器错误:', error);
   return Promise.reject(error);
 });
 
 // 添加响应拦截器
 apiClient.interceptors.response.use(response => {
+  console.log(`响应: ${response.status} ${response.config.method.toUpperCase()} ${response.config.url}`, {
+    data: response.data
+  });
   return response;
 }, error => {
+  console.error('响应拦截器捕获错误:', error);
+
   // 日志完整错误信息以便调试
   if (error.response) {
     console.error('API错误响应:', {

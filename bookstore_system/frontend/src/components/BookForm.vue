@@ -156,15 +156,18 @@ watch(() => props.book, (newVal) => {
 function handleSubmit() {
   // 创建一个新对象，避免直接修改表单状态
   const bookData = { 
-    ...form.value,
+    isbn: form.value.isbn,
+    name: form.value.name,
+    author: form.value.author || '',
+    publisher: form.value.publisher || '',
     // 确保价格和数量是数字类型
     retail_price: parseFloat(form.value.retail_price),
     quantity: parseInt(form.value.quantity, 10)
   };
   
-  // 如果是创建新书籍，移除is_active字段，因为后端不接受此字段
-  if (!props.isEditMode) {
-    delete bookData.is_active;
+  // 如果是编辑模式，添加is_active字段
+  if (props.isEditMode) {
+    bookData.is_active = form.value.is_active;
   }
   
   console.log('提交书籍数据：', bookData);
