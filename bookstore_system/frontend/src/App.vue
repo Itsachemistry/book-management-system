@@ -8,8 +8,8 @@
         <router-link to="/books">库存</router-link>
         <router-link to="/procurement">采购</router-link>
         <router-link to="/sales">销售</router-link>
-        <router-link to="/reports">报表</router-link>
-        <router-link v-if="authStore.isAdmin" to="/users">用户管理</router-link>
+        <router-link to="/finance">财务报表</router-link>
+        <router-link v-if="authStore.isSuperAdmin" to="/users">用户管理</router-link>
         <router-link to="/profile">个人资料</router-link>
         <button @click="logoutUser" class="logout-button">登出</button>
       </nav>

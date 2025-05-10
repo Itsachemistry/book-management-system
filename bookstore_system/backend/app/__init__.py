@@ -19,6 +19,9 @@ def create_app(config_name='development'):
     # 1. 加载配置
     app.config.from_object(config[config_name])
     config[config_name].init_app(app) # 执行特定配置的初始化方法
+    
+    # 添加此行: 禁止URL自动添加尾部斜杠
+    app.url_map.strict_slashes = False
 
     # 2. 初始化扩展
     db.init_app(app)       # 关联 SQLAlchemy 到 app
@@ -63,6 +66,10 @@ def create_app(config_name='development'):
     # 添加销售蓝图
     from .routes.sales_routes import sales_bp
     app.register_blueprint(sales_bp, url_prefix='/api/sales')
+    
+    # 添加财务蓝图
+    from .routes.finance_routes import finance_bp
+    app.register_blueprint(finance_bp, url_prefix='/api/finance')
     
     # ... 其他蓝图将在后续阶段添加
 

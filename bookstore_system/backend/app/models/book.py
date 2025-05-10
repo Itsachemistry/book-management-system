@@ -42,21 +42,25 @@ class Book(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def decrease_stock(self, amount):
-        """减少库存
+    def decrease_stock(self, quantity):
+        """
+        减少图书库存
         
         Args:
-            amount: 要减少的数量
-            
+            quantity: 需要减少的数量
+        
         Returns:
-            bool: 库存是否足够
+            bool: 减少是否成功
+        
+        Raises:
+            ValueError: 库存不足
         """
-        if self.quantity < amount:
-            return False
+        if self.quantity < quantity:
+            raise ValueError(f"库存不足: 当前库存{self.quantity}, 请求数量{quantity}")
         
-        self.quantity -= amount
+        self.quantity -= quantity
         return True
-        
+    
     def increase_stock(self, amount, suggested_retail_price=None):
         """增加库存
         

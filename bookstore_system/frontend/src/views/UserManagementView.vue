@@ -27,6 +27,7 @@
           <th>年龄</th>
           <th>角色</th>
           <th>创建时间</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -39,6 +40,12 @@
           <td>{{ user.age || '-' }}</td>
           <td>{{ user.role }}</td>
           <td>{{ formatDate(user.created_at) }}</td>
+          <td>
+            <div class="action-buttons">
+              <button @click="editUser(user)" class="btn-edit">编辑</button>
+              <button @click="confirmDelete(user)" class="btn-delete">删除</button>
+            </div>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -115,27 +122,132 @@
         </div>
       </div>
     </div>
+
+    <!-- 编辑用户模态框 -->
+    <div v-if="showEditModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>编辑用户</h2>
+          <button @click="showEditModal = false" class="close-btn">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+          <div v-if="formError" class="error-message">
+            {{ formError }}
+          </div>
+          
+          <form @submit.prevent="updateUser">
+            <div class="form-group">
+              <label for="edit-username">用户名</label>
+              <input type="text" id="edit-username" v-model="editingUser.username" readonly>
+              <span class="hint">用户名不可更改</span>
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-employee_id">员工ID<span class="required">*</span></label>
+              <input type="text" id="edit-employee_id" v-model="editingUser.employee_id" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-full_name">全名</label>
+              <input type="text" id="edit-full_name" v-model="editingUser.full_name">
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-gender">性别</label>
+              <select id="edit-gender" v-model="editingUser.gender">
+                <option value="">请选择</option>
+                <option value="男">男</option>
+                <option value="女">女</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-age">年龄</label>
+              <input type="number" id="edit-age" v-model.number="editingUser.age" min="18">
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-role">角色<span class="required">*</span></label>
+              <select id="edit-role" v-model="editingUser.role" required>
+                <option value="NORMAL_ADMIN">普通管理员</option>
+                <option value="SUPER_ADMIN">超级管理员</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-password">重置密码</label>
+              <input type="password" id="edit-password" v-model="editingUser.password" placeholder="留空表示不修改密码">
+              <span v-if="editingUser.password && editingUser.password.length < 6" class="error-hint">
+                密码长度必须至少为6个字符
+              </span>
+            </div>
+            
+            <div class="form-actions">
+              <button type="button" @click="showEditModal = false" class="btn-secondary">
+                取消
+              </button>
+              <button type="submit" class="btn-primary" :disabled="formSubmitting">
+                {{ formSubmitting ? '更新中...' : '更新用户' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除用户确认模态框 -->
+    <div v-if="showDeleteModal" class="modal">
+      <div class="modal-content delete-modal">
+        <div class="modal-header">
+          <h2>确认删除</h2>
+          <button @click="showDeleteModal = false" class="close-btn">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+          <p>您确定要删除以下用户吗？</p>
+          <p class="user-info">{{ userToDelete.username }} ({{ userToDelete.full_name || '未设置全名' }})</p>
+          <p class="warning-text">此操作不可逆，请谨慎操作！</p>
+          
+          <div class="form-actions">
+            <button type="button" @click="showDeleteModal = false" class="btn-secondary">
+              取消
+            </button>
+            <button type="button" @click="deleteUser" class="btn-danger" :disabled="formSubmitting">
+              {{ formSubmitting ? '删除中...' : '确认删除' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { getUsers, createUser } from '../api/users';
+import { getUsers, createUser, updateUserById, deleteUserById } from '../api/users';
 import { useAuthStore } from '../store/auth';
+import { useRouter } from 'vue-router';
 
 // 检查是否是管理员
 const authStore = useAuthStore();
+const router = useRouter();
+
 if (!authStore.isAdmin) {
-  // 如果不是管理员，可以跳转回首页或显示错误
+  // 如果不是管理员，跳转回首页
+  router.push('/');
 }
 
 // 状态变量
 const users = ref([]);
 const loading = ref(true);
 const error = ref(null);
-const showCreateModal = ref(false);
 const formError = ref(null);
 const formSubmitting = ref(false);
+const showCreateModal = ref(false);
+const showEditModal = ref(false);
+const showDeleteModal = ref(false);
 
 // 新用户表单数据
 const newUser = ref({
@@ -147,6 +259,10 @@ const newUser = ref({
   age: null,
   role: 'NORMAL_ADMIN'
 });
+
+// 编辑用户数据
+const editingUser = ref({});
+const userToDelete = ref({});
 
 // 格式化日期显示
 function formatDate(dateString) {
@@ -217,6 +333,74 @@ async function createNewUser() {
   }
 }
 
+// 编辑用户
+function editUser(user) {
+  // 创建一个用户对象的深拷贝，避免直接修改原始数据
+  editingUser.value = JSON.parse(JSON.stringify(user));
+  // 清空密码字段，确保不会意外更新
+  editingUser.value.password = '';
+  showEditModal.value = true;
+  formError.value = null;
+}
+
+// 更新用户
+async function updateUser() {
+  formSubmitting.value = true;
+  formError.value = null;
+  
+  // 密码验证
+  if (editingUser.value.password && editingUser.value.password.length < 6) {
+    formError.value = "密码长度必须至少为6个字符";
+    formSubmitting.value = false;
+    return;
+  }
+  
+  // 如果密码为空，则从提交的数据中删除它
+  const userData = { ...editingUser.value };
+  if (!userData.password) {
+    delete userData.password;
+  }
+  
+  try {
+    await updateUserById(editingUser.value.id, userData);
+    showEditModal.value = false;
+    
+    // 刷新用户列表
+    fetchUsers();
+  } catch (err) {
+    formError.value = err.message || "更新用户失败";
+    console.error('更新用户失败:', err);
+  } finally {
+    formSubmitting.value = false;
+  }
+}
+
+// 显示删除确认对话框
+function confirmDelete(user) {
+  userToDelete.value = user;
+  showDeleteModal.value = true;
+  formError.value = null;
+}
+
+// 删除用户
+async function deleteUser() {
+  formSubmitting.value = true;
+  
+  try {
+    await deleteUserById(userToDelete.value.id);
+    showDeleteModal.value = false;
+    
+    // 刷新用户列表
+    fetchUsers();
+  } catch (err) {
+    error.value = err.message || "删除用户失败";
+    console.error('删除用户失败:', err);
+    showDeleteModal.value = false;
+  } finally {
+    formSubmitting.value = false;
+  }
+}
+
 // 组件挂载时获取用户列表
 onMounted(fetchUsers);
 </script>
@@ -262,6 +446,16 @@ h1 {
   margin-right: 0.5rem;
 }
 
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
 .users-table {
   width: 100%;
   border-collapse: collapse;
@@ -282,6 +476,31 @@ h1 {
 
 .users-table tr:nth-child(even) {
   background-color: #f9f9f9;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.btn-edit {
+  background-color: #f39c12;
+  color: white;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.btn-delete {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
 }
 
 .loading {
@@ -378,6 +597,32 @@ h1 {
 
 .error-hint {
   color: #e74c3c;
+  font-size: 0.8rem;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.delete-modal {
+  max-width: 400px;
+}
+
+.user-info {
+  font-weight: bold;
+  margin: 1rem 0;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.warning-text {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.hint {
+  color: #7f8c8d;
   font-size: 0.8rem;
   display: block;
   margin-top: 0.25rem;

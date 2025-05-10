@@ -2,28 +2,34 @@ import axios from 'axios';
 
 // 创建 Axios 实例
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '',  // 确保这里是空字符串，不要加'/api'前缀
   headers: {
     'Content-Type': 'application/json',
   },
   withCredentials: true
 });
-
 // 添加请求拦截器
 apiClient.interceptors.request.use(config => {
   console.log(`请求: ${config.method.toUpperCase()} ${config.url}`, {
     params: config.params,
     data: config.data,
-    headers: config.headers
+    headers: {...config.headers} // Log a copy of initial headers
   });
 
   // 从localStorage获取token
   const token = localStorage.getItem('auth_token');
+  console.log('请求时读取到的token:', token);
   
   // 如果有token，添加到请求头
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
+    console.log('Authorization header set in request config:', config.headers['Authorization']);
+  } else {
+    console.log('No auth_token found in localStorage for request to', config.url);
   }
+
+  // Log final headers being sent in the config
+  console.log('Final request headers in config for', config.url, {...config.headers});
 
   // POST和PUT请求时确保数据正确
   if ((config.method === 'post' || config.method === 'put') && config.data) {
@@ -74,16 +80,8 @@ apiClient.interceptors.response.use(response => {
       请求: error.config
     });
     
-    // 401错误时可能需要重新登录
-    if (error.response.status === 401) {
-      // 如果不是登录请求本身，可以清除token并重定向到登录页面
-      if (!error.config.url.includes('login')) {
-        console.log('认证失败，清除token');
-        localStorage.removeItem('auth_token');
-        // 如果使用了Vue Router，这里可以重定向
-        // window.location.href = '/login';
-      }
-    }
+    // 401错误时，具体的处理（如调用authStore.logout()）将由API调用处的错误处理逻辑（e.g., handleApiError)发起
+    // 不再在此处直接操作localStorage或尝试重定向
   } else {
     console.error('API请求错误:', error.message);
   }

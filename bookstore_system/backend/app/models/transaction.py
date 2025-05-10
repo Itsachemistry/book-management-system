@@ -1,36 +1,44 @@
-from datetime import datetime, timezone # 导入 timezone
-from ..database import db
+from datetime import datetime, timezone
+from .. import db
+from sqlalchemy.sql import func
 
 # 交易类型常量
 TRANSACTION_TYPES = {
-    'INCOME': 'INCOME',      # 收入 (销售图书)
-    'EXPENSE': 'EXPENSE',    # 支出 (采购图书)
-    'REFUND': 'REFUND',      # 退款 (退货)
-    'OTHER': 'OTHER'         # 其他
+    'INCOME': 'INCOME',    # 收入
+    'EXPENSE': 'EXPENSE'   # 支出
+}
+
+# 引用类型常量 - 修改后
+REFERENCE_TYPES = {
+    'SALE': 'SALE',                   # 销售单 (收入)
+    'PURCHASE': 'PURCHASE',           # 进货单 (支出)
+    'SALE_REFUND': 'SALE_REFUND',     # 销售退款 (支出)
+    'PURCHASE_RETURN': 'PURCHASE_RETURN', # 进货退货/退款 (收入)
+    'SALARY': 'SALARY',               # 工资支出 (支出)
+    'OTHER_INCOME': 'OTHER_INCOME',   # 其他收入
+    'OTHER_EXPENSE': 'OTHER_EXPENSE'  # 其他支出
 }
 
 class Transaction(db.Model):
-    """财务交易记录模型"""
+    """财务交易记录表"""
     __tablename__ = 'transactions'
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    transaction_type = db.Column(db.String(20), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
-    description = db.Column(db.String(200))
+    type = db.Column(db.String(20), nullable=False)  # INCOME 或 EXPENSE
+    description = db.Column(db.Text)
+    reference_id = db.Column(db.String(50))  # 关联单据编号
+    reference_type = db.Column(db.String(20))  # 关联单据类型
     transaction_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = db.Column(db.DateTime, default=func.now())
+    updated_at = db.Column(db.DateTime, default=func.now(), onupdate=func.now())
     
-    # 关联到操作用户
+    # 关联用户
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     user = db.relationship('User', backref=db.backref('transactions', lazy=True))
     
-    # 关联到相关单据 (可以是进货单或销售单)
-    reference_id = db.Column(db.Integer)
-    reference_type = db.Column(db.String(50))  # 'purchase_order' 或 'sale'
-    
-    # 审计字段
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    
-    def __repr__(self):
-        return f"<Transaction {self.transaction_type} {self.amount}>"
+    @property
+    def is_income(self):
+        """是否为收入"""
+        return self.type == TRANSACTION_TYPES['INCOME']
 

@@ -3,13 +3,26 @@
     <h1>图书库存管理</h1>
 
     <div class="top-actions">
-      <button 
-        v-if="authStore.isAdmin" 
-        class="btn-add" 
-        @click="showAddModal = true"
-      >
-        添加新书籍
-      </button>
+      <div class="action-buttons">
+        <!-- 现有的添加按钮 -->
+        <button 
+          v-if="authStore.isAdmin" 
+          class="btn btn-primary" 
+          @click="showAddModal = true"
+        >
+          添加书籍
+        </button>
+        
+        <!-- 新增批量导入按钮 -->
+        <router-link to="/books/import" class="btn btn-secondary">
+          <i class="fas fa-file-import"></i> 批量导入
+        </router-link>
+        
+        <!-- 新增的ISBN查询按钮 -->
+        <router-link to="/books/isbn-references" class="btn btn-info">
+          <i class="fas fa-search"></i> ISBN引用查询
+        </router-link>
+      </div>
     </div>
 
     <!-- 搜索和过滤 -->
@@ -84,58 +97,12 @@
           <button class="close-btn" @click="showViewModal = false">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="book-details">
-            <div class="detail-row">
-              <div class="detail-label">ISBN:</div>
-              <div class="detail-value">{{ selectedBook.isbn }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">书名:</div>
-              <div class="detail-value">{{ selectedBook.name }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">作者:</div>
-              <div class="detail-value">{{ selectedBook.author || '未知' }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">出版社:</div>
-              <div class="detail-value">{{ selectedBook.publisher || '未知' }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">售价:</div>
-              <div class="detail-value">¥{{ selectedBook.retail_price?.toFixed(2) || '0.00' }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">库存:</div>
-              <div class="detail-value">{{ selectedBook.quantity || 0 }} 本</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">状态:</div>
-              <div class="detail-value">
-                <span :class="selectedBook.is_active ? 'active-status' : 'inactive-status'">
-                  {{ selectedBook.is_active ? '有效' : '已下架' }}
-                </span>
-              </div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">创建时间:</div>
-              <div class="detail-value">{{ formatDate(selectedBook.created_at) }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">更新时间:</div>
-              <div class="detail-value">{{ formatDate(selectedBook.updated_at) }}</div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-cancel" @click="showViewModal = false">关闭</button>
-            <button 
-              v-if="authStore.isAdmin" 
-              class="btn-edit" 
-              @click="handleEditFromView"
-            >
-              编辑
-            </button>
-          </div>
+          <BookDetail 
+            :book="selectedBook" 
+            :isAdmin="authStore.isAdmin"
+            @close="showViewModal = false"
+            @edit="handleEditFromView"
+          />
         </div>
       </div>
     </div>
@@ -150,7 +117,7 @@
         <div class="modal-body">
           <p>您确定要删除以下书籍吗？</p>
           <p class="delete-book-name">《{{ selectedBook.name }}》</p>
-          <p class="delete-warning">此操作将使书籍下架，但不会从数据库中永久删除。</p>
+          <p class="delete-warning">此操作将从数据库中永久删除该书籍，无法恢复！如果该书籍已有销售或采购记录，删除可能会失败。</p>
           <div class="modal-footer">
             <button class="btn-cancel" @click="showDeleteModal = false">取消</button>
             <button 
@@ -174,6 +141,7 @@ import { useAuthStore } from '../store/auth';
 import BookTable from '../components/BookTable.vue';
 import BookForm from '../components/BookForm.vue';
 import BookSearchFilter from '../components/BookSearchFilter.vue';
+import BookDetail from '../components/BookDetail.vue'; // 导入新组件
 
 // 获取 store 实例
 const bookStore = useBookStore();
@@ -263,6 +231,7 @@ async function handleUpdateBook(bookData) {
 function handleView(book) {
   selectedBook.value = { ...book };
   showViewModal.value = true;
+  console.log('显示书籍详情:', selectedBook.value); // 添加日志以便调试
 }
 
 // 处理删除请求
@@ -314,7 +283,12 @@ h1 {
   margin-bottom: 20px;
 }
 
-.btn-add {
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-primary {
   background-color: #3498db;
   color: #fff;
   border: none;
@@ -323,7 +297,41 @@ h1 {
   border-radius: 5px;
 }
 
-.btn-add:hover {
+.btn-primary:hover {
+  background-color: #2980b9;
+}
+
+.btn-secondary {
+  background-color: #95a5a6;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 5px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-secondary:hover {
+  background-color: #7f8c8d;
+}
+
+.btn-info {
+  background-color: #3498db;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 5px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-info:hover {
   background-color: #2980b9;
 }
 
@@ -429,6 +437,37 @@ h1 {
 .delete-warning {
   color: #e74c3c;
   font-size: 14px;
+}
+
+.book-details {
+  padding: 10px;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 8px;
+}
+
+.detail-label {
+  font-weight: bold;
+  width: 100px;
+  color: #555;
+}
+
+.detail-value {
+  flex: 1;
+}
+
+.active-status {
+  color: #2ecc71;
+  font-weight: bold;
+}
+
+.inactive-status {
+  color: #e74c3c;
+  font-weight: bold;
 }
 </style>
 

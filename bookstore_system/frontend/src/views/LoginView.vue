@@ -49,8 +49,8 @@ import { useAuthStore } from '../store/auth';
 const router = useRouter();
 const authStore = useAuthStore();
 
-const username = ref('admin');
-const password = ref('admin123');
+const username = ref('');  // 修改为空字符串
+const password = ref('');  // 修改为空字符串
 const loading = ref(false);
 const error = ref('');
 

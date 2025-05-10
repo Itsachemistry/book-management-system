@@ -141,7 +141,7 @@ export async function updateBook(id, bookData) {
 }
 
 /**
- * 删除书籍（逻辑删除）
+ * 删除书籍（物理删除）
  * @param {number} id 书籍ID
  * @returns {Promise<Object>} 响应信息
  */
@@ -207,6 +207,38 @@ function handleApiError(error, defaultMessage) {
     console.error('请求配置错误:', error.message);
     console.groupEnd();
     throw new Error(`发送请求时出错: ${error.message}`);
+  }
+}
+
+/**
+ * 根据ISBN获取书籍信息
+ * @param {string} isbn ISBN号
+ * @returns {Promise<Object|null>} 书籍信息或null（如果书籍不存在）
+ */
+export async function getBookByIsbn(isbn) {
+  try {
+    const response = await apiClient.get(`/books/isbn/${isbn}`);
+    return response.data;
+  } catch (error) {
+    // 如果返回404，说明图书不存在，返回null而不是抛出错误
+    if (error.response && error.response.status === 404) {
+      return null;
+    }
+    handleApiError(error, '查询ISBN失败');
+  }
+}
+
+/**
+ * 根据ISBN查询所有相关记录
+ * @param {string} isbn ISBN号
+ * @returns {Promise<Object>} 包含所有相关记录的对象
+ */
+export async function getIsbnReferences(isbn) {
+  try {
+    const response = await apiClient.get(`/books/isbn-references/${isbn}`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error, '查询ISBN引用失败');
   }
 }
 

@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const httpProxy = require('http-proxy');
+const os = require('os'); // 添加os模块用于获取网络接口信息
 
 const PORT = 3000;
 const API_URL = 'http://127.0.0.1:5000';
@@ -28,6 +29,25 @@ proxy.on('error', (err, req, res) => {
   res.writeHead(500, {'Content-Type': 'text/plain'});
   res.end('代理请求失败: ' + err.message);
 });
+
+// 获取本机IP地址的函数
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  let ipAddress = '';
+  
+  // 遍历所有网络接口
+  Object.keys(interfaces).forEach((interfaceName) => {
+    const interfaceInfo = interfaces[interfaceName];
+    // 过滤IPv4地址且非内部IP
+    interfaceInfo.forEach((info) => {
+      if (info.family === 'IPv4' && !info.internal) {
+        ipAddress = info.address;
+      }
+    });
+  });
+  
+  return ipAddress || 'localhost';
+}
 
 const server = http.createServer((req, res) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -125,8 +145,11 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
+  const localIP = getLocalIP();
   console.log(`测试服务器运行在 http://localhost:${PORT}`);
+  console.log(`局域网访问地址: http://${localIP}:${PORT}`);
   console.log(`访问 http://localhost:${PORT} 打开测试页面`);
   console.log(`API请求将代理到 ${API_URL}/api`);
+  console.log('同一WiFi下的其他设备可通过上面的局域网地址访问');
 });

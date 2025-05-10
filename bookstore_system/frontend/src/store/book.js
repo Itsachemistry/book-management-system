@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { getBooks, getBook, createBook, updateBook, deleteBook } from '../api/books';
+import { getBooks, getBook, createBook, updateBook, deleteBook, getBookByIsbn } from '../api/books';
 
 export const useBookStore = defineStore('book', {
   state: () => ({
@@ -96,6 +96,26 @@ export const useBookStore = defineStore('book', {
       } catch (error) {
         this.error = error.message;
         console.error('加载书籍详情失败:', error);
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    /**
+     * 通过ISBN加载书籍
+     * @param {string} isbn 书籍ISBN
+     */
+    async loadBookByIsbn(isbn) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const book = await getBookByIsbn(isbn);
+        // 不设置为currentBook，因为这只是为了搜索
+        return book;
+      } catch (error) {
+        console.error('通过ISBN加载书籍失败:', error);
         throw error;
       } finally {
         this.loading = false;
@@ -209,7 +229,7 @@ export const useBookStore = defineStore('book', {
     },
     
     /**
-     * 删除书籍（逻辑删除）
+     * 删除书籍（物理删除）
      * @param {number} id 书籍ID
      */
     async removeBook(id) {
@@ -219,20 +239,16 @@ export const useBookStore = defineStore('book', {
       try {
         const result = await deleteBook(id);
         
-        // 从列表中移除删除的书籍
-        if (this.searchParams.active_only) {
-          this.books = this.books.filter(book => book.id !== id);
+        // 从列表中完全移除被删除的书籍
+        this.books = this.books.filter(book => book.id !== id);
+        
+        // 更新分页信息
+        if (this.pagination && typeof this.pagination.total === 'number') {
           this.pagination.total -= 1;
           this.pagination.pages = Math.ceil(this.pagination.total / this.pagination.per_page);
-        } else {
-          // 如果显示的是所有书籍（包括被删除的），则只更新状态
-          const index = this.books.findIndex(book => book.id === id);
-          if (index !== -1) {
-            this.books[index].is_active = false;
-          }
         }
         
-        // 清除当前选中的书籍（如果是已删除的书籍）
+        // 如果当前选中的书籍是被删除的书籍，清除选择
         if (this.currentBook && this.currentBook.id === id) {
           this.currentBook = null;
         }

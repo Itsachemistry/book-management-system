@@ -176,7 +176,7 @@ def pay_order(order_id):
     
     # 创建财务记录
     transaction = Transaction(
-        transaction_type=TRANSACTION_TYPES['EXPENSE'],
+        type=TRANSACTION_TYPES['EXPENSE'],
         amount=order.total_amount,
         description=f"支付进货订单 {order.order_number}",
         user_id=g.user.id,

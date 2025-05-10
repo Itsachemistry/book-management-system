@@ -32,35 +32,65 @@
         <div v-else>
           <div class="book-selection">
             <div class="form-group">
-              <label for="book_select">选择书籍</label>
-              <select id="book_select" v-model="selectedBook">
-                <option value="">-- 选择一本书 --</option>
-                <option v-for="book in availableBooks" :key="book.id" :value="book">
-                  {{ book.name }} ({{ book.isbn }}) - ¥{{ book.retail_price.toFixed(2) }}
-                </option>
-              </select>
+              <label for="book_search">搜索书籍 (书名或ISBN)</label>
+              <div class="search-container">
+                <input
+                  type="text"
+                  id="book_search"
+                  v-model="searchQuery"
+                  @input="searchBooks"
+                  placeholder="输入书名或ISBN"
+                  autocomplete="off"
+                />
+                <div v-if="isSearching" class="search-loader">搜索中...</div>
+              </div>
+              
+              <!-- 搜索结果下拉框 -->
+              <div v-if="showResults && searchResults.length > 0" class="search-results">
+                <div 
+                  v-for="book in searchResults" 
+                  :key="book.id" 
+                  class="search-result-item"
+                  :class="{'exact-match': book.exactMatch}"
+                  @click="selectBook(book)"
+                >
+                  <div class="book-title">
+                    {{ book.name }}
+                    <span v-if="book.exactMatch" class="match-badge">精确匹配</span>
+                  </div>
+                  <div class="book-details">
+                    ISBN: {{ book.isbn }} | 作者: {{ book.author || '未知' }} | 库存: {{ book.quantity }} | 价格: ¥{{ parseFloat(book.retail_price).toFixed(2) }}
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="showResults && searchQuery && !isSearching" class="no-results">
+                未找到匹配的图书
+              </div>
             </div>
             
-            <div class="form-group">
-              <label for="quantity">数量</label>
-              <input
-                type="number"
-                id="quantity"
-                v-model.number="quantity"
-                min="1"
-                max="100"
-                :disabled="!selectedBook"
-              />
+            <div v-if="selectedBook" class="selected-book">
+              <span>已选：《{{ selectedBook.name }}》 - 库存: {{ selectedBook.quantity }}</span>
+              <div class="quantity-input">
+                <label for="quantity">数量:</label>
+                <input
+                  type="number"
+                  id="quantity"
+                  v-model.number="quantity"
+                  min="1"
+                  :max="selectedBook.quantity"
+                  required
+                />
+              </div>
+              
+              <button 
+                type="button" 
+                class="btn btn-add-item" 
+                @click="addItem"
+                :disabled="!selectedBook || quantity < 1"
+              >
+                添加到购物车
+              </button>
             </div>
-            
-            <button 
-              type="button" 
-              class="btn btn-add-item" 
-              @click="addItem"
-              :disabled="!selectedBook || quantity < 1"
-            >
-              添加到购物车
-            </button>
           </div>
         </div>
         
@@ -83,9 +113,9 @@
             <tbody>
               <tr v-for="(item, index) in saleData.items" :key="index">
                 <td>{{ item.book.name }}</td>
-                <td>¥{{ item.price.toFixed(2) }}</td>
+                <td>¥{{ parseFloat(item.price).toFixed(2) }}</td>
                 <td>{{ item.quantity }}</td>
-                <td>¥{{ calculateItemTotal(item).toFixed(2) }}</td>
+                <td>¥{{ parseFloat(calculateItemTotal(item)).toFixed(2) }}</td>
                 <td>
                   <button 
                     type="button" 
@@ -147,9 +177,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import { useBookStore } from '../store/book';
-import { createSale } from '../api/sales';
+import { useSalesStore } from '../store/sales';
 
 const props = defineProps({
   initialData: {
@@ -161,10 +191,16 @@ const props = defineProps({
 const emit = defineEmits(['created', 'cancel']);
 
 const bookStore = useBookStore();
+const salesStore = useSalesStore();
 const loading = ref(false);
 const submitting = ref(false);
 const selectedBook = ref(null);
 const quantity = ref(1);
+const searchQuery = ref('');
+const searchResults = ref([]);
+const isSearching = ref(false);
+const showResults = ref(false);
+const availableBooks = ref([]);
 
 // 表单数据
 const saleData = reactive({
@@ -175,21 +211,84 @@ const saleData = reactive({
   items: []
 });
 
-// 可用书籍列表 (有库存的)
-const availableBooks = ref([]);
+// 修改为使用防抖函数处理搜索
+const debouncedSearch = (() => {
+  let timeout;
+  return (query) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      if (query && query.length >= 1) { // 降低触发字符数到1
+        searchBooks(query);
+      } else {
+        searchResults.value = [];
+        showResults.value = false;
+      }
+    }, 300); // 300ms防抖延迟
+  };
+})();
 
-// 加载书籍
-const loadBooks = async () => {
-  loading.value = true;
+// 监听搜索输入
+watch(searchQuery, (newValue) => {
+  debouncedSearch(newValue);
+});
+
+// 搜索图书 - 修改搜索逻辑
+const searchBooks = async (query) => {
+  isSearching.value = true;
+  showResults.value = true;
+  
   try {
-    await bookStore.loadBooks({ active_only: true, per_page: 100 });
-    // 过滤有库存的书籍
-    availableBooks.value = bookStore.books.filter(book => book.quantity > 0);
+    // 判断是否可能是ISBN (纯数字或带连字符的数字字符串)
+    const isIsbnLike = /^[0-9\-]+$/.test(query);
+    
+    // 1. 对于ISBN格式的查询，降低搜索字符门槛
+    const minLength = isIsbnLike ? 1 : 2;
+    
+    if (query.length < minLength) {
+      searchResults.value = [];
+      return;
+    }
+    
+    // 2. 执行模糊搜索
+    await bookStore.loadBooks({
+      search: query,
+      active_only: true,
+      per_page: 10
+    });
+    
+    // 3. 只显示有库存的书籍
+    searchResults.value = bookStore.books.filter(book => book.quantity > 0);
+    
+    // 4. 对于类似ISBN的长查询，尝试精确查找
+    if (isIsbnLike && query.length >= 8) {
+      try {
+        const book = await bookStore.loadBookByIsbn(query);
+        if (book && book.quantity > 0) {
+          const existingIndex = searchResults.value.findIndex(b => b.id === book.id);
+          if (existingIndex !== -1) {
+            searchResults.value.splice(existingIndex, 1);
+          }
+          book.exactMatch = true;
+          searchResults.value.unshift(book);
+        }
+      } catch (error) {
+        console.log('ISBN精确查询未找到结果:', error);
+      }
+    }
   } catch (error) {
-    console.error('加载书籍失败:', error);
+    console.error('搜索图书失败:', error);
+    searchResults.value = [];
   } finally {
-    loading.value = false;
+    isSearching.value = false;
   }
+};
+
+// 选择图书
+const selectBook = (book) => {
+  selectedBook.value = book;
+  quantity.value = 1;
+  searchQuery.value = '';
+  showResults.value = false;
 };
 
 // 添加购物项
@@ -215,7 +314,7 @@ const addItem = () => {
     saleData.items.push({
       book_id: selectedBook.value.id,
       book: selectedBook.value,
-      price: selectedBook.value.retail_price,
+      price: parseFloat(selectedBook.value.retail_price),
       quantity: quantity.value
     });
   }
@@ -232,14 +331,28 @@ const removeItem = (index) => {
 
 // 计算单项总价
 const calculateItemTotal = (item) => {
-  return item.price * item.quantity;
+  return parseFloat(item.price) * item.quantity;
 };
 
 // 计算总价
 const calculateTotal = () => {
   return saleData.items.reduce((sum, item) => {
-    return sum + calculateItemTotal(item);
+    return sum + parseFloat(calculateItemTotal(item));
   }, 0);
+};
+
+// 加载书籍列表
+const loadBooks = async () => {
+  loading.value = true;
+  try {
+    await bookStore.loadBooks({ active_only: true, per_page: 100 });
+    // 过滤有库存的书籍
+    availableBooks.value = bookStore.books.filter(book => book.quantity > 0);
+  } catch (error) {
+    console.error('加载书籍失败:', error);
+  } finally {
+    loading.value = false;
+  }
 };
 
 // 提交表单
@@ -252,32 +365,68 @@ const submitForm = async () => {
   submitting.value = true;
   
   try {
+    // 检查登录状态
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      console.error('提交表单时发现未登录状态');
+      alert('您的登录状态已失效，请重新登录后再试');
+      submitting.value = false;
+      return;
+    }
+    
     // 准备提交数据
     const submitData = {
-      customer_name: saleData.customer_name,
-      contact: saleData.contact,
-      payment_method: saleData.payment_method,
-      remarks: saleData.remarks,
+      customer_name: saleData.customer_name || null,
+      contact: saleData.contact || null,
+      payment_method: saleData.payment_method || 'CASH',
+      remarks: saleData.remarks || null,
       items: saleData.items.map(item => ({
-        book_id: item.book_id,
-        quantity: item.quantity,
-        price: item.price
+        book_id: Number(item.book_id),
+        quantity: Number(item.quantity),
+        price: parseFloat(item.price)
       }))
     };
     
-    const result = await createSale(submitData);
+    // 使用 store 进行调用
+    const result = await salesStore.createSale(submitData);
     emit('created', result);
   } catch (error) {
     console.error('创建销售失败:', error);
-    alert('创建销售失败: ' + error.message);
+    if (error.message.includes('会话已过期')) {
+      alert('您的登录状态已失效，请重新登录后再试');
+    } else if (error.response && error.response.data && error.response.data.error) {
+      alert('创建销售失败: ' + error.response.data.error);
+    } else {
+      alert('创建销售失败: ' + (error.message || '未知错误'));
+    }
   } finally {
     submitting.value = false;
+  }
+};
+
+// 点击外部关闭搜索结果
+const handleClickOutside = (e) => {
+  if (!e.target.closest('.search-container') && !e.target.closest('.search-results')) {
+    showResults.value = false;
   }
 };
 
 // 组件挂载时加载书籍
 onMounted(() => {
   loadBooks();
+  document.addEventListener('click', handleClickOutside);
+});
+
+// 在组件卸载时移除事件监听器
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+// 组件卸载时清理资源
+onMounted(() => {
+  return () => {
+    document.removeEventListener('click', handleClickOutside);
+  };
 });
 </script>
 
@@ -328,24 +477,107 @@ h4 {
   font-size: 14px;
 }
 
+.search-container {
+  position: relative;
+}
+
+.search-loader {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #666;
+}
+
+.search-results {
+  position: absolute;
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.search-result-item {
+  padding: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+}
+
+.search-result-item:hover {
+  background-color: #f5f5f5;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item.exact-match {
+  background-color: #e6f7ff;
+}
+
+.book-title {
+  font-weight: bold;
+  margin-bottom: 3px;
+}
+
+.book-title .match-badge {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: white;
+  background-color: #007bff;
+  border-radius: 3px;
+}
+
+.book-details {
+  font-size: 12px;
+  color: #666;
+}
+
+.no-results {
+  padding: 10px;
+  color: #666;
+  text-align: center;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.selected-book {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.quantity-input {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.quantity-input input {
+  width: 60px;
+}
+
 .form-group textarea {
   resize: vertical;
 }
 
 .book-selection {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 15px;
-  align-items: flex-end;
-}
-
-.book-selection .form-group {
-  flex: 1;
-  min-width: 200px;
-}
-
-.book-selection input[type="number"] {
-  width: 100px;
 }
 
 .cart-table {

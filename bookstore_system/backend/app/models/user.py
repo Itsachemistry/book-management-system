@@ -29,6 +29,12 @@ class User(db.Model):
         """验证密码是否正确"""
         return bcrypt.check_password_hash(self.hashed_password, password)
     
+    def is_admin(self):
+        """
+        检查用户是否具有管理员权限
+        """
+        return self.role in ['ADMIN', 'SUPER_ADMIN']
+    
     def __repr__(self):
         return f"<User {self.username}>"
 

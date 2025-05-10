@@ -46,88 +46,65 @@
             </button>
           </div>
           
-          <div class="item-type-selector">
-            <label>图书类型:</label>
-            <div class="radio-group">
-              <label>
-                <input type="radio" v-model="item.isExistingBook" :value="true"> 选择已有图书
-              </label>
-              <label>
-                <input type="radio" v-model="item.isExistingBook" :value="false"> 新图书
-              </label>
-            </div>
-          </div>
-          
-          <!-- 已有图书 -->
-          <div v-if="item.isExistingBook" class="existing-book-section">
+          <!-- 统一的图书信息输入表单 -->
+          <div class="book-form">
             <div class="form-group">
-              <label>选择图书</label>
-              <select v-model="item.book_id" class="form-control" required>
-                <option value="">-- 请选择图书 --</option>
-                <option v-if="!books.length && !loadingBooks" value="" disabled>暂无可选图书</option>
-                <option v-if="loadingBooks" value="" disabled>加载中...</option>
-                <option v-for="book in books" :key="book.id" :value="book.id">
-                  {{ book.name }} ({{ book.isbn }}) - {{ book.author }}
-                </option>
-              </select>
-            </div>
-          </div>
-          
-          <!-- 新图书 -->
-          <div v-else class="new-book-section">
-            <div class="form-row">
-              <div class="form-group">
-                <label>ISBN</label>
+              <label>ISBN <span class="required">*</span></label>
+              <div class="isbn-input-group">
                 <input
                   type="text"
                   v-model="item.isbn"
                   class="form-control"
-                  placeholder="请输入ISBN号码"
+                  placeholder="输入ISBN"
                   required
+                  @blur="checkIsbnExists(item)"
                 />
+                <button 
+                  type="button" 
+                  class="btn btn-sm btn-secondary" 
+                  @click="checkIsbnExists(item)"
+                >
+                  查询
+                </button>
               </div>
-              
-              <div class="form-group">
-                <label>书名</label>
-                <input
-                  type="text"
-                  v-model="item.title"
-                  class="form-control"
-                  placeholder="请输入书名"
-                  required
-                />
+              <div v-if="item.isExistingBook" class="book-exists-notice">
+                此图书已存在，信息已自动填充
               </div>
             </div>
             
-            <div class="form-row">
-              <div class="form-group">
-                <label>作者</label>
-                <input
-                  type="text"
-                  v-model="item.author"
-                  class="form-control"
-                  placeholder="请输入作者"
-                  required
-                />
-              </div>
-              
-              <div class="form-group">
-                <label>出版社</label>
-                <input
-                  type="text"
-                  v-model="item.publisher"
-                  class="form-control"
-                  placeholder="请输入出版社"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-          
-          <!-- 共有字段：数量和价格 -->
-          <div class="form-row">
             <div class="form-group">
-              <label>数量</label>
+              <label>书名 <span class="required">*</span></label>
+              <input
+                type="text"
+                v-model="item.title"
+                class="form-control"
+                placeholder="图书标题"
+                required
+              />
+            </div>
+            
+            <div class="form-group">
+              <label>作者</label>
+              <input
+                type="text"
+                v-model="item.author"
+                class="form-control"
+                placeholder="作者"
+              />
+            </div>
+            
+            <div class="form-group">
+              <label>出版社</label>
+              <input
+                type="text"
+                v-model="item.publisher"
+                class="form-control"
+                placeholder="出版社"
+              />
+            </div>
+            
+            <div class="form-group">
+              <label>数量 <span class="required">*</span></label>
               <input
                 type="number"
                 v-model.number="item.quantity"
@@ -138,7 +115,7 @@
             </div>
             
             <div class="form-group">
-              <label>进货单价(￥)</label>
+              <label>进货单价(￥) <span class="required">*</span></label>
               <input
                 type="number"
                 v-model.number="item.purchase_price"
@@ -193,7 +170,7 @@
 <script>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useProcurementStore } from '../store/procurement';
-import { getBooks } from '../api/books';
+import { getBooks, getBookByIsbn } from '../api/books';
 
 export default {
   name: 'OrderForm',
@@ -203,168 +180,124 @@ export default {
     const procurementStore = useProcurementStore();
     
     // 状态变量
-    const books = ref([]);
     const submitting = ref(false);
-    const loadingBooks = ref(false);
+    const error = ref(null);
     
     // 订单数据
     const orderData = reactive({
       supplier: '',
       remarks: '',
-      items: [createEmptyItem()]
+      items: [createNewItem()]
     });
     
-    // 获取图书列表
-    const loadBooks = async () => {
-      loadingBooks.value = true;
-      console.log('开始加载图书列表...');
-      try {
-        console.log('调用getBooks API...');
-        const response = await getBooks({ active_only: true, per_page: 100 });
-        console.log('API返回响应:', response);
-        
-        if (response && response.items) {
-          books.value = response.items;
-          console.log(`已成功加载${books.value.length}本图书`);
-        } else {
-          console.warn('API返回了响应，但没有找到items属性:', response);
-          books.value = [];
-        }
-      } catch (error) {
-        console.error('加载图书失败的详细错误:', error);
-        
-        // 错误类型分析
-        if (error instanceof TypeError) {
-          console.error('类型错误，可能是响应结构不符合预期');
-        }
-        
-        // 尝试设置空数组以避免模板错误
-        books.value = [];
-        alert(`加载图书列表失败: ${error.message}`);
-      } finally {
-        loadingBooks.value = false;
-        console.log('图书加载过程结束');
-      }
-    };
-    
-    // 创建空的订单项
-    function createEmptyItem() {
+    // 创建新的订单项
+    function createNewItem() {
       return {
-        isExistingBook: true,
-        book_id: '',
         isbn: '',
         title: '',
         author: '',
         publisher: '',
         quantity: 1,
         purchase_price: 0,
-        suggested_retail_price: null
+        suggested_retail_price: null,
+        isExistingBook: false,
+        book_id: null
       };
     }
     
     // 添加订单项
-    const addItem = () => {
-      orderData.items.push(createEmptyItem());
-    };
+    function addItem() {
+      orderData.items.push(createNewItem());
+    }
     
     // 移除订单项
-    const removeItem = (index) => {
+    function removeItem(index) {
       orderData.items.splice(index, 1);
-    };
+    }
+    
+    // 检查ISBN是否存在于数据库中
+    async function checkIsbnExists(item) {
+      if (!item.isbn) return;
+      
+      try {
+        const book = await getBookByIsbn(item.isbn);
+        
+        if (book) {
+          // 图书存在，自动填充信息
+          item.isExistingBook = true;
+          item.book_id = book.id;
+          item.title = book.name;
+          item.author = book.author || '';
+          item.publisher = book.publisher || '';
+          
+          // 如果零售价未设置，可以参考原有的零售价
+          if (!item.suggested_retail_price && book.retail_price) {
+            item.suggested_retail_price = book.retail_price;
+          }
+        } else {
+          // 图书不存在，重置为新图书
+          item.isExistingBook = false;
+          item.book_id = null;
+        }
+      } catch (err) {
+        console.error('检查ISBN失败:', err);
+        item.isExistingBook = false;
+        item.book_id = null;
+      }
+    }
     
     // 计算小计
-    const calculateSubtotal = (item) => {
-      return (item.quantity * item.purchase_price).toFixed(2);
-    };
+    function calculateSubtotal(item) {
+      return ((item.quantity || 0) * (item.purchase_price || 0)).toFixed(2);
+    }
     
     // 计算总金额
     const totalAmount = computed(() => {
       return orderData.items.reduce((sum, item) => {
-        return sum + (item.quantity * item.purchase_price);
+        return sum + (item.quantity || 0) * (item.purchase_price || 0);
       }, 0).toFixed(2);
     });
     
     // 提交表单
-    const submitForm = async () => {
-      if (orderData.items.length === 0) {
-        alert('请至少添加一个订单项');
-        return;
-      }
-      
-      // 表单验证
-      for (const item of orderData.items) {
-        if (item.isExistingBook) {
-          if (!item.book_id) {
-            alert('请选择已有图书');
-            return;
-          }
-        } else {
-          if (!item.isbn || !item.title || !item.author || !item.publisher) {
-            alert('请填写完整的新图书信息');
-            return;
-          }
-        }
-        
-        if (item.quantity <= 0) {
-          alert('图书数量必须大于0');
-          return;
-        }
-        
-        if (item.purchase_price <= 0) {
-          alert('进货单价必须大于0');
-          return;
-        }
-      }
-      
+    async function submitForm() {
       submitting.value = true;
+      error.value = null;
       
       try {
-        // 转换为API所需格式
-        const payload = {
+        // 转换数据格式
+        const orderPayload = {
           supplier: orderData.supplier,
           remarks: orderData.remarks,
-          items: orderData.items.map(item => {
-            const result = {
-              quantity: item.quantity,
-              purchase_price: item.purchase_price,
-              suggested_retail_price: item.suggested_retail_price || null
-            };
-            
-            if (item.isExistingBook) {
-              result.book_id = item.book_id;
-            } else {
-              result.isbn = item.isbn;
-              result.title = item.title;
-              result.author = item.author;
-              result.publisher = item.publisher;
-            }
-            
-            return result;
-          })
+          items: orderData.items.map(item => ({
+            book_id: item.book_id,
+            isbn: item.isbn,
+            title: item.title,
+            author: item.author,
+            publisher: item.publisher,
+            quantity: item.quantity,
+            purchase_price: item.purchase_price,
+            suggested_retail_price: item.suggested_retail_price
+          }))
         };
         
-        const newOrder = await procurementStore.addOrder(payload);
+        // 创建订单
+        const newOrder = await procurementStore.addOrder(orderPayload);
         emit('created', newOrder);
-      } catch (error) {
-        console.error('Failed to create order:', error);
-        alert('创建订单失败: ' + error.message);
+      } catch (err) {
+        console.error('创建订单失败:', err);
+        error.value = err.message || '创建订单失败';
       } finally {
         submitting.value = false;
       }
-    };
-    
-    // 加载图书数据
-    onMounted(() => {
-      loadBooks();
-    });
+    }
     
     return {
-      books,
       orderData,
       submitting,
-      loadingBooks,
+      error,
       addItem,
       removeItem,
+      checkIsbnExists,
       calculateSubtotal,
       totalAmount,
       submitForm
@@ -375,21 +308,21 @@ export default {
 
 <style scoped>
 .order-form {
-  max-width: 100%;
+  max-width: 1000px;
 }
 
 .form-section {
-  margin-bottom: 25px;
+  margin-bottom: 30px;
   border: 1px solid #eee;
   border-radius: 5px;
-  padding: 15px;
-  background-color: #fdfdfd;
+  padding: 20px;
+  background-color: #fff;
 }
 
-h3 {
+.form-section h3 {
   margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 18px;
+  margin-bottom: 20px;
+  color: #333;
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
 }
@@ -401,35 +334,53 @@ h3 {
 }
 
 .form-group {
+  margin-bottom: 15px;
   flex: 1;
-  min-width: 0;
 }
 
-label {
+.form-group label {
   display: block;
   margin-bottom: 5px;
-  font-weight: 500;
-  font-size: 14px;
+  color: #555;
+}
+
+.required {
+  color: #e53935;
 }
 
 .form-control {
   width: 100%;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
 }
 
-textarea.form-control {
-  resize: vertical;
+.isbn-input-group {
+  display: flex;
+  gap: 10px;
+}
+
+.isbn-input-group .form-control {
+  flex: 1;
+}
+
+.isbn-input-group .btn {
+  white-space: nowrap;
+}
+
+.book-exists-notice {
+  color: #4caf50;
+  margin-top: 5px;
+  font-size: 12px;
 }
 
 .order-item {
-  margin-bottom: 20px;
-  padding: 15px;
-  border: 1px dashed #ccc;
-  border-radius: 5px;
   background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 20px;
 }
 
 .order-item-header {
@@ -437,54 +388,40 @@ textarea.form-control {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
 }
 
 .order-item-header h4 {
   margin: 0;
-  font-size: 16px;
 }
 
-.item-type-selector {
-  margin-bottom: 15px;
-}
-
-.radio-group {
-  display: flex;
-  gap: 20px;
-  margin-top: 5px;
-}
-
-.radio-group label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-}
-
-.existing-book-section,
-.new-book-section {
-  border-top: 1px solid #eee;
-  padding-top: 15px;
-  margin-bottom: 15px;
+.book-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
 }
 
 .subtotal {
-  margin-top: 10px;
   text-align: right;
+  margin-top: 15px;
   font-weight: bold;
-  font-size: 16px;
+  color: #333;
 }
 
 .order-total {
-  text-align: right;
-  margin: 20px 0;
   font-size: 18px;
+  font-weight: bold;
+  text-align: right;
+  margin-bottom: 20px;
+  color: #2196f3;
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: 20px;
 }
 
 .btn {
@@ -493,43 +430,30 @@ textarea.form-control {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  transition: background-color 0.2s;
-}
-
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 12px;
 }
 
 .btn-primary {
-  background-color: #1976d2;
+  background-color: #2196f3;
   color: white;
-}
-
-.btn-primary:hover {
-  background-color: #1565c0;
 }
 
 .btn-secondary {
-  background-color: #757575;
+  background-color: #9e9e9e;
   color: white;
-}
-
-.btn-secondary:hover {
-  background-color: #616161;
 }
 
 .btn-danger {
-  background-color: #e53935;
+  background-color: #f44336;
   color: white;
 }
 
-.btn-danger:hover {
-  background-color: #d32f2f;
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
 }
 
 button:disabled {
-  background-color: #cccccc;
+  opacity: 0.7;
   cursor: not-allowed;
 }
 </style>

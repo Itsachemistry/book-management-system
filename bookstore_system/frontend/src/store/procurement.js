@@ -55,37 +55,32 @@ export const useProcurementStore = defineStore('procurement', {
       this.error = null;
       
       try {
-        // 合并过滤器和传入参数
-        const queryParams = { ...this.filters, ...params };
+        // 创建一个干净的查询参数对象
+        const queryParams = {};
         
-        if (params.page) {
-          this.pagination.page = params.page;
-        }
+        // 合并并清理过滤器和传入参数
+        const mergedParams = { ...this.filters, ...params };
         
-        if (params.status !== undefined) {
-          this.filters.status = params.status;
-        }
-        
-        if (params.start_date !== undefined) {
-          this.filters.start_date = params.start_date;
-        }
-        
-        if (params.end_date !== undefined) {
-          this.filters.end_date = params.end_date;
-        }
-        
-        const result = await getOrders({
-          page: this.pagination.page,
-          per_page: this.pagination.per_page,
-          ...queryParams
+        // 只添加有值的参数
+        Object.keys(mergedParams).forEach(key => {
+          if (mergedParams[key] !== undefined && mergedParams[key] !== '') {
+            queryParams[key] = mergedParams[key];
+          }
         });
+        
+        // 添加分页参数
+        queryParams.page = this.pagination.page;
+        queryParams.per_page = this.pagination.per_page;
+        
+        const result = await getOrders(queryParams);
         
         this.orders = result.orders;
         this.pagination = result.pagination;
         
         return result;
       } catch (error) {
-        this.error = error.message || '加载订单列表失败';
+        this.error = error.message || '加载订单失败';
+        console.error('获取进货订单列表失败:', error);
         throw error;
       } finally {
         this.loading = false;
@@ -138,6 +133,14 @@ export const useProcurementStore = defineStore('procurement', {
       } finally {
         this.loading = false;
       }
+    },
+    
+    /**
+     * createOrder的别名函数，保持向后兼容
+     * @param {Object} orderData 订单数据
+     */
+    async createOrder(orderData) {
+      return this.addOrder(orderData);
     },
     
     /**
@@ -270,8 +273,17 @@ export const useProcurementStore = defineStore('procurement', {
      * @param {Object} filters 过滤条件
      */
     async applyFilters(filters) {
+      // 清理过滤器，移除空字符串值
+      const cleanFilters = {};
+      
+      Object.keys(filters).forEach(key => {
+        if (filters[key] !== '') {
+          cleanFilters[key] = filters[key];
+        }
+      });
+      
       // 更新过滤器
-      this.filters = { ...this.filters, ...filters };
+      this.filters = { ...this.filters, ...cleanFilters };
       
       // 重置到第一页
       this.pagination.page = 1;

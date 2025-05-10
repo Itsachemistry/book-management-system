@@ -5,21 +5,53 @@ from ..schemas.book_schema import BookSchema, BookCreateSchema, BookUpdateSchema
 from ..utils.decorators import login_required, admin_required
 from .. import db
 from sqlalchemy import or_
-from marshmallow import ValidationError
+from marshmallow import ValidationError, Schema, fields
+from ..models.purchase_order import PurchaseOrder, PurchaseOrderItem
+import re
 
 # 创建蓝图
 book_bp = Blueprint('book', __name__, url_prefix='/api/books')
 
 @book_bp.route('/', methods=['GET'])
 def list_books():
+    """
+    获取书籍列表，支持搜索和分页
+    ---
+    参数:
+      - search: 搜索关键词(可选，搜索书名、作者或ISBN)
+      - page: 页码(可选，默认1)
+      - per_page: 每页数量(可选，默认20)
+      - active_only: 是否仅显示有效书籍(可选，默认True)
+    权限: 任何用户
+    返回:
+      - 200: 返回书籍列表和分页信息
+    """
     search = request.args.get('search', '', type=str)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     active_only = request.args.get('active_only', 'false').lower() == 'true'
 
     query = Book.query
+    
+    # 改进搜索逻辑
     if search:
-        query = query.filter(Book.name.ilike(f'%{search}%'))
+        # 检查是否是ISBN格式（纯数字或带连字符）
+        is_isbn_like = bool(re.match(r'^[0-9\-]+$', search))
+        
+        if is_isbn_like:
+            # ISBN搜索使用包含匹配，而不是前缀匹配
+            query = query.filter(Book.isbn.like(f'%{search}%'))
+        else:
+            # 一般搜索 - 同时搜索书名、作者和ISBN
+            search_term = f"%{search}%"
+            query = query.filter(
+                or_(
+                    Book.name.ilike(search_term),
+                    Book.author.ilike(search_term),
+                    Book.isbn.ilike(search_term)
+                )
+            )
+            
     if active_only:
         query = query.filter(Book.is_active.is_(True))
 
@@ -61,6 +93,26 @@ def get_book(isbn_or_id):
     # 如果仍然没找到，返回404
     if book is None:
         abort(404, description="书籍未找到")
+    
+    return jsonify(BookSchema().dump(book))
+
+@book_bp.route('/isbn/<isbn>', methods=['GET'])
+@login_required
+def get_book_by_isbn(isbn):
+    """
+    根据ISBN获取书籍信息
+    ---
+    参数:
+      - isbn: 书籍ISBN
+    权限: 任何登录用户
+    返回:
+      - 200: 返回书籍详情
+      - 404: 书籍未找到
+    """
+    book = Book.query.filter_by(isbn=isbn).first()
+    
+    if book is None:
+        abort(404, description="未找到匹配的ISBN图书")
     
     return jsonify(BookSchema().dump(book))
 
@@ -204,4 +256,82 @@ def delete_book(isbn_or_id):
         return jsonify({"error": f"删除书籍时发生数据库错误"}), 500
     
     return jsonify({"message": "书籍已成功删除"})
+
+@book_bp.route('/isbn-references/<isbn>', methods=['GET'])
+@admin_required
+def get_isbn_references(isbn):
+    """
+    查询指定ISBN在各个表中的引用
+    ---
+    参数:
+      - isbn: 书籍ISBN号
+    权限: 仅管理员
+    返回:
+      - 200: 返回所有引用信息
+      - 404: 书籍未找到
+    """
+    # 查找书籍基本信息
+    book = Book.query.filter_by(isbn=isbn).first()
+    
+    if not book:
+        return jsonify({"error": f"未找到ISBN为 {isbn} 的书籍"}), 404
+    
+    result = {
+        "book": BookSchema().dump(book),
+        "purchase_items": [],
+        "purchase_orders": []
+    }
+    
+    # 查找直接通过ISBN记录的采购项
+    direct_purchase_items = PurchaseOrderItem.query.filter_by(isbn=isbn).all()
+    
+    # 查找通过book_id关联的采购项
+    book_id_purchase_items = PurchaseOrderItem.query.filter_by(book_id=book.id).all()
+    
+    # 合并两种查询结果(去重)
+    all_item_ids = set()
+    all_purchase_items = []
+    
+    for item in direct_purchase_items + book_id_purchase_items:
+        if item.id not in all_item_ids:
+            all_purchase_items.append(item)
+            all_item_ids.add(item.id)
+    
+    # 查找关联的订单
+    if all_purchase_items:
+        # 准备schema
+        class SimplePurchaseItemSchema(Schema):
+            id = fields.Integer()
+            purchase_order_id = fields.Integer()
+            quantity = fields.Integer()
+            purchase_price = fields.Decimal(as_string=True)
+            title = fields.String()
+            author = fields.String()
+            publisher = fields.String()
+            order_date = fields.DateTime(attribute="order.order_date")
+            order_status = fields.String(attribute="order.status")
+            order_number = fields.String(attribute="order.order_number")
+            supplier = fields.String(attribute="order.supplier")
+        
+        # 序列化采购项
+        purchase_item_schema = SimplePurchaseItemSchema(many=True)
+        result["purchase_items"] = purchase_item_schema.dump(all_purchase_items)
+        
+        # 获取相关的采购订单ID
+        order_ids = list(set(item.purchase_order_id for item in all_purchase_items))
+        orders = PurchaseOrder.query.filter(PurchaseOrder.id.in_(order_ids)).all()
+        
+        class SimplePurchaseOrderSchema(Schema):
+            id = fields.Integer()
+            order_number = fields.String()
+            order_date = fields.DateTime()
+            status = fields.String()
+            supplier = fields.String()
+            total_amount = fields.Decimal(as_string=True)
+        
+        order_schema = SimplePurchaseOrderSchema(many=True)
+        result["purchase_orders"] = order_schema.dump(orders)
+    
+    # 返回结果
+    return jsonify(result)
 

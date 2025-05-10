@@ -114,3 +114,81 @@ def update_profile():
     schema = UserSchema()
     return jsonify(schema.dump(user))
 
+@user_bp.route('/<int:user_id>', methods=['GET'])
+@admin_required
+def get_user_by_id(user_id):
+    """
+    获取单个用户信息API（仅管理员）
+    
+    返回:
+    {用户信息}
+    """
+    user = User.query.get_or_404(user_id)
+    schema = UserSchema()
+    return jsonify(schema.dump(user))
+
+@user_bp.route('/<int:user_id>', methods=['PUT'])
+@admin_required
+def update_user(user_id):
+    """
+    更新用户信息API（仅管理员）
+    
+    请求体:
+    {
+        "full_name": "全名",
+        "employee_id": "员工ID",
+        "gender": "性别",
+        "age": 年龄,
+        "role": "角色"
+    }
+    
+    返回:
+    {更新后的用户信息}
+    """
+    try:
+        user = User.query.get_or_404(user_id)
+        data = request.get_json()
+        
+        # 允许更新的字段
+        allowed_fields = ['full_name', 'employee_id', 'gender', 'age', 'role']
+        
+        # 更新字段
+        for field in allowed_fields:
+            if field in data:
+                setattr(user, field, data[field])
+        
+        # 可选更新密码
+        if 'password' in data and data['password']:
+            user.set_password(data['password'])
+        
+        # 保存更改
+        db.session.commit()
+        
+        # 返回更新后的用户信息
+        schema = UserSchema()
+        return jsonify(schema.dump(user))
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"更新用户时发生错误: {str(e)}")
+        return jsonify({"error": "更新用户失败"}), 500
+
+@user_bp.route('/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id):
+    """
+    删除用户API（仅管理员）
+    
+    返回:
+    {"message": "用户已删除"}
+    """
+    try:
+        user = User.query.get_or_404(user_id)
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({"message": "用户已删除"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"删除用户时发生错误: {str(e)}")
+        return jsonify({"error": "删除用户失败"}), 500
+

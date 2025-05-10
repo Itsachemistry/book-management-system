@@ -74,7 +74,7 @@ def login_required(f):
 def admin_required(f):
     """
     用于保护需要管理员权限才能访问的API路由的装饰器
-    在login_required基础上增加角色检查 (允许 ADMIN 和 SUPER_ADMIN)
+    在login_required基础上增加角色检查 (允许 NORMAL_ADMIN 和 SUPER_ADMIN)
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -88,8 +88,8 @@ def admin_required(f):
         # Debug print: 登录检查通过，检查角色
         print(f"admin_required: Login check passed. Checking role for user: {g.user}", file=sys.stderr) 
         
-        # 检查用户是否为 ADMIN 或 SUPER_ADMIN
-        allowed_roles = ['ADMIN', 'SUPER_ADMIN']
+        # 检查用户是否为 NORMAL_ADMIN 或 SUPER_ADMIN
+        allowed_roles = ['NORMAL_ADMIN', 'SUPER_ADMIN']
         if g.user.role not in allowed_roles:
             # Debug print: 角色检查失败
             print(f"admin_required: Aborting 403 - User role '{g.user.role}' not in {allowed_roles}", file=sys.stderr) 

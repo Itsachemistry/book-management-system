@@ -1,89 +1,106 @@
 import { defineStore } from 'pinia';
-import { getSales, getSale, refundSale } from '../api/sales';
+import { getSales, getSale, refundSale, createSale as createSaleApi } from '../api/sales';
+import { useAuthStore } from './auth';
 
 export const useSalesStore = defineStore('sales', {
   state: () => ({
     sales: [],
-    currentSale: null,
     loading: false,
     error: null,
     pagination: {
       page: 1,
-      per_page: 20,
+      pages: 1,
       total: 0,
-      pages: 1
+      per_page: 10
     }
   }),
-  
-  getters: {
-    // 完成销售数量
-    completedSalesCount: (state) => {
-      return state.sales.filter(sale => sale.status === 'COMPLETED').length;
-    },
-    
-    // 已退款销售数量
-    refundedSalesCount: (state) => {
-      return state.sales.filter(sale => sale.status === 'REFUNDED').length;
-    },
-    
-    // 销售总金额
-    totalAmount: (state) => {
-      return state.sales
-        .filter(sale => sale.status === 'COMPLETED')
-        .reduce((sum, sale) => sum + parseFloat(sale.total_amount), 0)
-        .toFixed(2);
-    }
-  },
-  
+
   actions: {
-    // 加载销售列表
-    async loadSales(params = {}) {
+    async loadSales(filters = {}) {
       this.loading = true;
-      this.error = null;
-      
       try {
-        const response = await getSales(params);
-        this.sales = response.sales;
-        this.pagination = response.pagination;
+        // 首先确认用户已登录
+        const authStore = useAuthStore();
+        if (!authStore.isAuthenticated) {
+          console.warn('尝试加载销售列表时用户未登录');
+          throw new Error('需要登录才能访问销售数据');
+        }
+        
+        const response = await getSales(filters);
+        this.sales = response.sales || response.items || [];
+        this.pagination = response.pagination || {
+          page: 1,
+          pages: 1,
+          total: 0,
+          per_page: 10
+        };
+        this.error = null;
       } catch (error) {
-        this.error = error.message;
         console.error('加载销售列表失败:', error);
+        this.error = error.message;
+        this.sales = [];
       } finally {
         this.loading = false;
       }
     },
-    
-    // 获取单个销售详情
+
     async getSale(id) {
       try {
+        // 首先确认用户已登录
+        const authStore = useAuthStore();
+        if (!authStore.isAuthenticated) {
+          console.warn('尝试获取销售详情时用户未登录');
+          throw new Error('需要登录才能访问销售数据');
+        }
+        
         return await getSale(id);
       } catch (error) {
         console.error('获取销售详情失败:', error);
         throw error;
       }
     },
-    
-    // 处理退款
+
     async refundSale(id) {
       try {
-        const result = await refundSale(id);
-        
-        // 更新本地状态
-        const index = this.sales.findIndex(s => s.id === id);
-        if (index !== -1) {
-          this.sales[index].status = 'REFUNDED';
+        // 首先确认用户已登录
+        const authStore = useAuthStore();
+        if (!authStore.isAuthenticated) {
+          console.warn('尝试退款时用户未登录');
+          throw new Error('需要登录才能处理退款');
         }
         
+        const result = await refundSale(id);
+        // 更新本地列表中的状态
+        const index = this.sales.findIndex(sale => sale.id === id);
+        if (index !== -1 && result.sale) {
+          this.sales[index] = result.sale;
+        }
         return result;
       } catch (error) {
         console.error('退款处理失败:', error);
         throw error;
       }
     },
-    
-    // 清除错误
-    clearError() {
-      this.error = null;
+
+    async createSale(saleData) {
+      try {
+        // 首先确认用户已登录
+        const authStore = useAuthStore();
+        if (!authStore.isAuthenticated) {
+          console.warn('尝试创建销售时用户未登录');
+          throw new Error('需要登录才能创建销售记录');
+        }
+        
+        console.log('销售Store: 创建销售前的Token状态:', !!localStorage.getItem('auth_token'));
+        
+        const result = await createSaleApi(saleData);
+        // 创建成功后更新列表
+        await this.loadSales();
+        return result;
+      } catch (error) {
+        console.error('创建销售记录失败:', error);
+        throw error;
+      }
     }
   }
 });

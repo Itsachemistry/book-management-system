@@ -7,35 +7,45 @@
     </div>
     
     <div class="dashboard-cards">
-      <div class="card">
+      <div class="card" v-if="authStore.isSuperAdmin">
         <h3>用户管理</h3>
-        <p v-if="authStore.isAdmin">
+        <p>
           您可以管理系统用户。
           <router-link to="/users">查看用户列表</router-link>
         </p>
-        <p v-else>
+      </div>
+      
+      <div class="card" v-else>
+        <h3>个人资料</h3>
+        <p>
           您可以在个人资料页面更新您的信息。
           <router-link to="/profile">前往个人资料</router-link>
         </p>
       </div>
       
-      <!-- 这些功能将在后续阶段实现 -->
+      <!-- 这些功能应该对所有管理员开放 -->
       <div class="card">
         <h3>图书库存</h3>
         <p>管理书籍库存、查询图书信息。</p>
         <p><router-link to="/books">管理图书</router-link></p>
       </div>
       
-      <div class="card">
+      <div class="card" v-if="authStore.isAdmin">
         <h3>图书采购</h3>
         <p>创建采购单、追踪采购状态、管理入库。</p>
         <p><router-link to="/procurement">前往采购管理</router-link></p>
       </div>
       
-      <div class="card">
+      <div class="card" v-if="authStore.isAdmin">
         <h3>销售管理</h3>
         <p>处理书籍销售、查看销售记录。</p>
         <p><router-link to="/sales">前往销售页面</router-link></p>
+      </div>
+      
+      <div class="card" v-if="authStore.isAdmin">
+        <h3>财务报表</h3>
+        <p>查看收入支出统计、销售趋势图表和财务分析。</p>
+        <p><router-link to="/finance">查看财务报表</router-link></p>
       </div>
     </div>
   </div>

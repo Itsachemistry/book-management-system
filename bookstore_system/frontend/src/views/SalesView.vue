@@ -3,7 +3,7 @@
     <div class="header">
       <h1>销售管理</h1>
       <div class="actions">
-        <button class="btn btn-primary" @click="showCreateForm = true">
+        <button class="btn btn-primary" @click="checkBeforeCreateSale">
           新建销售
         </button>
       </div>
@@ -141,7 +141,67 @@
                 </span>
               </div>
             </div>
+            
+            <div class="info-row">
+              <div class="info-item">
+                <label>联系方式:</label>
+                <span>{{ currentSale.contact || '未提供' }}</span>
+              </div>
+              <div class="info-item">
+                <label>支付方式:</label>
+                <span>{{ getPaymentMethodText(currentSale.payment_method) }}</span>
+              </div>
+            </div>
+            
+            <div class="info-row" v-if="currentSale.remarks">
+              <div class="info-item full-width">
+                <label>备注:</label>
+                <span>{{ currentSale.remarks }}</span>
+              </div>
+            </div>
           </div>
+          
+          <!-- 销售商品列表 -->
+          <h3>销售商品</h3>
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>书名</th>
+                <th>ISBN</th>
+                <th>单价</th>
+                <th>数量</th>
+                <th>小计</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in currentSale.items" :key="item.id">
+                <td>{{ item.book ? item.book.name : '未知书籍' }}</td>
+                <td>{{ item.book ? item.book.isbn : '-' }}</td>
+                <td>￥{{ parseFloat(item.price).toFixed(2) }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>￥{{ (parseFloat(item.price) * item.quantity).toFixed(2) }}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" class="total-label">总计:</td>
+                <td class="total-amount">￥{{ parseFloat(currentSale.total_amount).toFixed(2) }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 创建销售表单模态框 -->
+    <div v-if="showCreateForm" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>新建销售</h2>
+          <button class="close-btn" @click="showCreateForm = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <SaleForm @created="handleSaleCreated" @cancel="showCreateForm = false" />
         </div>
       </div>
     </div>
@@ -152,10 +212,12 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useSalesStore } from '../store/sales';
 import { useAuthStore } from '../store/auth';
+import { useRouter } from 'vue-router'; // 添加router导入
 import SaleForm from '../components/SaleForm.vue';
 
 const salesStore = useSalesStore();
 const authStore = useAuthStore();
+const router = useRouter(); // 初始化router
 
 // 状态变量
 const showCreateForm = ref(false);
@@ -169,17 +231,42 @@ const filters = reactive({
 
 // 权限检查
 const hasRefundPermission = computed(() => {
-  return authStore.isAdmin || authStore.user.role === 'SUPER_ADMIN';
+  return authStore.isAdmin || authStore.hasPermission('manage_sales');
 });
 
 // 加载数据
-onMounted(() => {
-  loadSales();
+onMounted(async () => {
+  console.log('SalesView 组件挂载, 初始 isAuthenticated:', authStore.isAuthenticated);
+  
+  // 确保在执行任何操作前用户已认证
+  if (!authStore.isAuthenticated) {
+    console.log('SalesView: 用户未认证，将重定向到登录页面。');
+    router.push('/login');
+    return; // 阻止进一步执行
+  }
+  
+  try {
+    await loadSales();
+  } catch (error) {
+    console.error('加载销售数据失败 (onMounted catch):', error);
+    // 如果 loadSales 抛出错误（包括可能的401），这里可以进一步处理
+    // 但 loadSales 内部的错误处理应该已经处理了401
+  }
 });
 
 // 加载销售记录
 const loadSales = async () => {
-  await salesStore.loadSales();
+  try {
+    await salesStore.loadSales(filters);
+  } catch (error) {
+    console.error('加载销售记录失败 (loadSales function catch):', error);
+    // 如果是认证错误，执行登出并重定向
+    if (error.response && error.response.status === 401) {
+      console.log('loadSales 中检测到 401 错误，执行登出。');
+      authStore.logout(); // authStore.logout() 会处理重定向
+    }
+    throw error; 
+  }
 };
 
 // 查看详情
@@ -225,7 +312,23 @@ const changePage = async (page) => {
 // 处理新销售创建
 const handleSaleCreated = async () => {
   showCreateForm.value = false;
+  // 确保在加载销售数据前用户仍然是认证状态
+  if (!authStore.isAuthenticated) {
+    console.log('handleSaleCreated: 用户未认证，将重定向到登录页面。');
+    router.push('/login');
+    return;
+  }
   await loadSales();
+};
+
+// 创建销售前检查用户登录状态
+const checkBeforeCreateSale = () => {
+  if (!authStore.isAuthenticated) {
+    alert('您需要先登录才能创建销售记录');
+    router.push('/login');
+    return;
+  }
+  showCreateForm.value = true;
 };
 
 // 格式化日期
@@ -248,6 +351,17 @@ const getStatusText = (status) => {
     'CANCELLED': '已取消'
   };
   return statusMap[status] || status;
+};
+
+// 获取支付方式文本
+const getPaymentMethodText = (method) => {
+  const methodMap = {
+    'CASH': '现金',
+    'CARD': '银行卡',
+    'WECHAT': '微信支付',
+    'ALIPAY': '支付宝'
+  };
+  return methodMap[method] || method;
 };
 </script>
 
